@@ -1,0 +1,6 @@
+Implemented:
+
+Task 1 - Generating Camera Rays
+Task 2 - Intersecting Triangles and Spheres
+Task 3 - Implementing a Bounding Volume Hierarchy (BVH)
+Task 4 - Implementing Shadow Rays
