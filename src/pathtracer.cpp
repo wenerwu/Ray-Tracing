@@ -6,6 +6,8 @@
 #include <random>
 #include <algorithm>
 
+#include <omp.h>
+
 #include "CMU462/CMU462.h"
 #include "CMU462/vector3D.h"
 #include "CMU462/matrix3x3.h"
@@ -16,6 +18,7 @@
 #include "static_scene/sphere.h"
 #include "static_scene/triangle.h"
 #include "static_scene/light.h"
+
 
 using namespace CMU462::StaticScene;
 
@@ -198,18 +201,24 @@ void PathTracer::start_raytracing() {
   memset(&tile_samples[0], 0, num_tiles_w * num_tiles_h * sizeof(int));
 
   // populate the tile work queue
-  for (size_t y = 0; y < sampleBuffer.h; y += imageTileSize) {
-    for (size_t x = 0; x < sampleBuffer.w; x += imageTileSize) {
-      workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
-    }
-  }
+  
+
+  // for (size_t y = 0; y < sampleBuffer.h; y += imageTileSize) {
+  //   for (size_t x = 0; x < sampleBuffer.w; x += imageTileSize) {
+  //     //disable thread
+  //   //  workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
+  //     raytrace_tile(x, y, imageTileSize, imageTileSize);
+  //   }
+  // }
 
   // launch threads
   fprintf(stdout, "[PathTracer] Rendering... ");
   fflush(stdout);
-  for (int i = 0; i < numWorkerThreads; i++) {
-    workerThreads[i] = new std::thread(&PathTracer::worker_thread, this);
-  }
+
+  worker_thread(); 
+  // for (int i = 0; i < 1; i++) {
+  //   workerThreads[i] = new std::thread(&PathTracer::worker_thread, this);
+  // }
 }
 
 void PathTracer::build_accel() {
@@ -446,11 +455,12 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
     float pr;
 
     // ### Estimate direct lighting integral
+    
     for (SceneLight* light : scene->lights) {
 
       // no need to take multiple samples from a point/directional source
       int num_light_samples = light->is_delta_light() ? 1 : ns_area_light;
-
+    
       // integrate light over the hemisphere about the normal
       for (int i = 0; i < num_light_samples; i++) {
 
@@ -579,9 +589,14 @@ void PathTracer::raytrace_tile(int tile_x, int tile_y, int tile_w, int tile_h) {
   size_t tile_idx_y = tile_y / imageTileSize;
   size_t num_samples_tile = tile_samples[tile_idx_x + tile_idx_y * num_tiles_w];
 
+ // omp_set_num_threads(8);
+  // #pragma omp parallel for schedule(dynamic) 
   for (size_t y = tile_start_y; y < tile_end_y; y++) {
-    if (!continueRaytracing) return;
+    //if (!continueRaytracing) return;
+ 
+ //   #pragma omp parallel for schedule(dynamic)    
     for (size_t x = tile_start_x; x < tile_end_x; x++) {
+  //     fprintf(stdout, "Thread nums:%d\n", omp_get_num_threads());
       Spectrum s = raytrace_pixel(x, y);
       sampleBuffer.update_pixel(s, x, y);
     }
@@ -597,22 +612,36 @@ void PathTracer::worker_thread() {
   timer.start();
 
   WorkItem work;
-  while (continueRaytracing && workQueue.try_get_work(&work)) {
-    raytrace_tile(work.tile_x, work.tile_y, work.tile_w, work.tile_h);
-  }
 
-  workerDoneCount++;
-  if (!continueRaytracing && workerDoneCount == numWorkerThreads) {
-    timer.stop();
-    fprintf(stdout, "Canceled!\n");
-    state = READY;
-  }
+  #pragma omp parallel for schedule(dynamic) 
+  for (size_t y = 0; y < sampleBuffer.h; y ++) {
+ //   fprintf(stdout, "Threads:%d!\n", omp_get_num_threads()); 
+    for (size_t x = 0; x < sampleBuffer.w; x ++) {
+      //disable thread
+    //  workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
+        if(continueRaytracing)
+        {
+              Spectrum s = raytrace_pixel(x, y);
+              sampleBuffer.update_pixel(s, x, y);
+              
+        }
 
-  if (continueRaytracing && workerDoneCount == numWorkerThreads) {
-    timer.stop();
-    fprintf(stdout, "Done! (%.4fs)\n", timer.duration());
-    state = DONE;
+        // if(continueRaytracing)
+        //     raytrace_tile(x, y, imageTileSize, imageTileSize);
+
+        // else{
+        //   timer.stop();
+        //   fprintf(stdout, "Canceled!\n");
+        //   state = READY;
+        //   return;
+        // }
+
+      }
   }
+sampleBuffer.toColor(frameBuffer, 0, 0, sampleBuffer.w, sampleBuffer.h);
+  timer.stop();
+  fprintf(stdout, "Done! (%.4fs)\n", timer.duration());
+  state = DONE;
 }
 
 void PathTracer::increase_area_light_sample_count() {

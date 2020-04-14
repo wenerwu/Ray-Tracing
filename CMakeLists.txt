@@ -92,12 +92,12 @@ if(LINUX)
     endif()
 
     # Debug configuration
-    if(BUILD_DEBUG)
-        set(CMAKE_BUILD_TYPE Debug)
-    else(BUILD_DEBUG)
+  #  if(BUILD_DEBUG)
+ #       set(CMAKE_BUILD_TYPE Debug)
+  #  else(BUILD_DEBUG)
         set(GCC_CXX_FLAGS "${GCC_CXX_FLAGS} -O3")
         set(GCC_CXX_FLAGS "${GCC_CXX_FLAGS} -fopenmp")
-    endif(BUILD_DEBUG)
+  #  endif(BUILD_DEBUG)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GCC_CXX_FLAGS}")
 
@@ -164,6 +164,8 @@ endif(WIN32)
 # Required packages
 find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
+find_package(OpenMP REQUIRED)
+
 if (NOT WIN32)
   find_package(Freetype REQUIRED)
 endif ()
