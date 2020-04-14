@@ -26,6 +26,8 @@ Spectrum EnvironmentLight::sample_L(const Vector3D& p, Vector3D* wi,
 //	printf("%f %f\n", Xi2, phi);
 	*wi = Vector3D(xs, ys, zs);
 	Ray r = Ray(p, *wi);	
+
+	//distToLight!!!TODO!!
 	//printf("%f %f %f\n", xs, ys, zs);
 	//return Spectrum(1, 0, 0);
 	return sample_dir(r, theta, phi);
