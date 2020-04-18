@@ -405,7 +405,21 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
     // TODO (PathTracer):
     // (Task 7) If you have an environment map, return the Spectrum this ray
     // samples from the environment map. If you don't return black.
-    return Spectrum(0, 0, 0);
+
+    // if(this->envLight)
+    // {
+    //   double Xi1 = (double)(std::rand()) / RAND_MAX * 2 - 1;
+    //   double Xi2 = (double)(std::rand()) / RAND_MAX;	
+
+    //   double theta = acos(Xi1);
+    //   double phi = 2.0 * PI * Xi2;
+
+    //   Spectrum light_L = this->envLight->sample_dir(r, theta, phi);
+    // //  printf("%f %f %f\n",light_L.r, light_L.g, light_L.b);
+    //   return light_L;
+    // }
+    // else
+      return Spectrum(0, 0, 0);
   }
 
 // log ray hit
@@ -421,7 +435,7 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
   // code overwrites L_out by (.5,.5,.5) so that you can test your geometry
   // queries before you implement path tracing.
 
-  //L_out = Spectrum(5.f, 5.f, 5.f);
+  //L_out = Spectrum(.5f, .5f, .5f);
   //DirectionalLight dl = DirectionalLight(5, 100);
   
 
@@ -443,14 +457,14 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
   if (!isect.bsdf->is_delta()) {
     Vector3D dir_to_light;
     float dist_to_light;
-    float pr;
+    float pr; 
 
     // ### Estimate direct lighting integral
     for (SceneLight* light : scene->lights) {
 
       // no need to take multiple samples from a point/directional source
       int num_light_samples = light->is_delta_light() ? 1 : ns_area_light;
-
+ 
       // integrate light over the hemisphere about the normal
       for (int i = 0; i < num_light_samples; i++) {
 
@@ -459,11 +473,14 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
         // the distance from point x to this point on the light source.
         // (pr is the probability of randomly selecting the random
         // sample point on the light source -- more on this in part 2)
+        
         const Spectrum& light_L = light->sample_L(hit_p, &dir_to_light, &dist_to_light, &pr);
 
         // convert direction into coordinate space of the surface, where
         // the surface normal is [0 0 1]
         const Vector3D& w_in = w2o * dir_to_light;
+
+   //     printf("  %f %f %f    \n ", w_in.x, w_in.y, w_in.z);
         if (w_in.z < 0) continue;
 
           // note that computing dot(n,w_in) is simple
@@ -482,9 +499,14 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
 
         Ray shadow = Ray(o, dir_to_light, dist, 0);
         shadow.min_t = EPS_D;
-
+    //    printf("GO THROUGH    ");
         if(!bvh->intersect(shadow))
+        {
+          Spectrum tmp = 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
+    //      printf("HERE2 %f %f %f       %f %f %f      %f\n", f.r, f.g, f.b, light_L.r,  light_L.g, light_L.b, num_light_samples * pr);
           L_out += 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
+        }
+          
       }
     }
   }

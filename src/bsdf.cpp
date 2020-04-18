@@ -124,17 +124,18 @@ Spectrum GlassBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
 
 	float ni = ior;
 	float nt = 1.f;
-	if (cos(dot(wo, normal)) < 0)
+	if (cosi < 0)
 	{
 		ni = 1.f;
 		nt = ior;
+		cosi = abs(cosi);
 	}
 
 	double r1 = (nt * cosi - ni * cost) / (nt * cosi + ni * cost);
 	double r2 = (ni * cosi - nt * cost) / (ni * cosi + nt * cost);
 
 	double Fr = 0.5 * (r1 * r1 + r2 * r2);
-
+	
 	//printf("%f\n", Fr);
 
 	float randomFloat = ((float)std::rand() / RAND_MAX);
@@ -150,6 +151,7 @@ Spectrum GlassBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
 	else
 	{
 		*pdf = 1 - Fr;
+	//	printf("%f\n", cos(dot(wo, normal)));
 		return transmittance * (1 - Fr) * cos(dot(wo, normal));
 	}
 
@@ -179,6 +181,7 @@ bool BSDF::refract(const Vector3D& wo, Vector3D* wi, float ior) {
 	{
 		ni = 1.f;
 		nt = ior;
+		coso = abs(coso);
 	}
 	double sino = sqrt(1 - coso * coso);
 

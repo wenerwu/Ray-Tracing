@@ -11,8 +11,8 @@ EnvironmentLight::EnvironmentLight(const HDRImageBuffer* envMap)
 Spectrum EnvironmentLight::sample_L(const Vector3D& p, Vector3D* wi,
                                     float* distToLight, float* pdf) const {
   // TODO: (PathTracer) Implement
-	*pdf = 1.f / (4.f * PI);
-
+//	printf("Enviroment!   ");
+ 
 	double Xi1 = (double)(std::rand()) / RAND_MAX * 2 - 1;
 	double Xi2 = (double)(std::rand()) / RAND_MAX;	
 
@@ -25,10 +25,13 @@ Spectrum EnvironmentLight::sample_L(const Vector3D& p, Vector3D* wi,
 	
 //	printf("%f %f\n", Xi2, phi);
 	*wi = Vector3D(xs, ys, zs);
+	*distToLight = INF_D;
+	*pdf = 1.f / (4.f * M_PI);
+
 	Ray r = Ray(p, *wi);	
 
 	//distToLight!!!TODO!!
-	//printf("%f %f %f\n", xs, ys, zs);
+//	printf("%f %f %f\n", xs, ys, zs);
 	//return Spectrum(1, 0, 0);
 	return sample_dir(r, theta, phi);
 }
@@ -49,9 +52,10 @@ Spectrum EnvironmentLight::sample_dir(const Ray& r, double theta, double phi) co
 	int y = theta / PI * h;
 
 	//TODO!!!! interpolate
-	Spectrum map1 = envMap->data[y * h + x];
-	//printf("%f %f %f\n", map1.r, map1.g, map1.b);
-	return envMap->data[y * h + x];
+	Spectrum map1 = envMap->data[x + y * w];
+//	Spectrum map1 = Spectrum((float)envMap->data[(y * h + x)*3], (float)envMap->data[(y * h + x)*3 + 1], (float)envMap->data[(y * h + x)*3 + 2] );
+//	printf("%f %f %f\n", map1.r, map1.g, map1.b);
+	return map1;
 
 
 
