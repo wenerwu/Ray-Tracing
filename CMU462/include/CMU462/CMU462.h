@@ -2,7 +2,7 @@
 #define CMU462_H
 
 #include "misc.h"
-
+#define OMP 1
 // CMU462 Forward Declarations //
 
 namespace CMU462 {

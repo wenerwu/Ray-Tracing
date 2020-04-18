@@ -67,6 +67,7 @@ class BVHAccel : public Aggregate {
   void destroyNode(BVHNode* node);
 
   bool intersectWithNode(BVHNode* node, const Ray &ray, Intersection *isect) const;
+   bool intersectWithNode(const Ray &ray, Intersection *isect) const;
   /*
    * Split a BVHNode to get child node
    */

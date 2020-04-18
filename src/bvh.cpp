@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <stack>
+#include <memory.h>
 
 #define BUCKETSIZE 16
 using namespace std;
@@ -258,6 +259,113 @@ void BVHAccel::splitNode(const std::vector<Primitive *> &_primitives, BVHNode* n
 
 BBox BVHAccel::get_bbox() const { return root->bb; }
 
+bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
+{
+	BVHNode* node = root;
+	stack<BVHNode*> s;
+//	q.push(root);
+
+	// double t0, t1;
+	// if(!root->bb.intersect(ray, t0, t1))
+	// 	return false;
+
+	bool res = false;
+	double lt0, lt1, rt0, rt1;
+
+	// TODO!!!
+	int threadCount = 10;
+	int pid = 0;
+	int M[threadCount];
+	memset(M, 0, threadCount * sizeof(int));
+
+	BVHNode* near;
+	BVHNode* far;
+	bool hit = false;
+	while(true)
+	{
+		// when it's leaf, intersect directly
+		
+		if(node->isLeaf())
+		{	
+
+			for (size_t p = 0; p < node->range; ++p) {
+				if (primitives[node->start + p]->intersect(ray, isect))
+				{
+					hit = true;
+				}
+			}
+			if(s.empty())
+				break;
+			node = s.top();
+			s.pop();	
+		}
+		else
+		{
+			/* Parallel read ?*/
+			int hitleft = (bool)node->l->bb.intersect(ray, lt0, lt1);
+			int hitright = (bool)node->r->bb.intersect(ray, rt0, rt1);
+
+			/* Use parallel and barrier to init */
+			for(int i = 0; i <= 3; i++)
+				M[i] = 0;
+
+			// TODO: barrier here
+			M[2*hitleft + hitright] = 1;
+			// TODO: barrier here
+			//  if(2*hitleft + hitright == 3 )//&& 2*hitleft + hitright != 3)
+			// printf("%d %d %d\n",2*hitleft + hitright, M[2*hitleft + hitright], M[3] );
+			/* Visit both children */
+			if(M[3] || (M[1] && M[2]))
+			{
+		//		printf("HERE!!\n");
+				/* Decide which to go in first */
+				M[pid] = 2 * (hitright && (rt0 < lt0)) - 1;
+
+				/* TODO: PARLLEL SUM OVER HERE */
+				if(M[pid] < 0)
+				{
+					near = node->l;
+					far = node->r;
+				}
+				else
+				{
+					near = node->r;
+					far = node->l;
+				}
+				s.push(far);
+				node = near;
+			
+			}
+			else if(M[2])
+			{
+			//	printf("HERELEFT\n");
+				node = node->l;
+			}
+				
+			else if(M[1])
+			{
+			//	printf("HERERIGHT\n");
+				node = node->r;
+			}
+				
+			else
+			{
+				if(s.empty())
+					break;
+				
+				node = s.top();
+				s.pop();
+			}
+			
+			
+		}
+		
+	}
+
+	return hit;
+
+}
+
 bool BVHAccel::intersectWithNode(BVHNode* node, const Ray &ray, Intersection *isect)const
 {
 	if (!node)
@@ -313,7 +421,7 @@ bool BVHAccel::intersect(const Ray &ray) const {
   // with a BVH aggregate if and only if it intersects a primitive in
   // the BVH that is not an aggregate.
 	Intersection isect;
-	return intersectWithNode(root, ray, &isect);
+	return intersectWithNode( ray, &isect);
   //bool hit = false;
   //for (size_t p = 0; p < primitives.size(); ++p) {
   //  if (primitives[p]->intersect(ray)) hit = true;
@@ -330,7 +438,7 @@ bool BVHAccel::intersect(const Ray &ray, Intersection *isect) const {
   // You should store the non-aggregate primitive in the intersection data
   // and not the BVH aggregate itself.
 
-	return intersectWithNode(root, ray, isect);
+	return intersectWithNode(ray, isect);
   //bool hit = false;
   //for (size_t p = 0; p < primitives.size(); ++p) {
   //  if (primitives[p]->intersect(ray, isect)) hit = true;

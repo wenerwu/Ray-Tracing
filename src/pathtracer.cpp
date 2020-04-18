@@ -142,6 +142,7 @@ void PathTracer::update_screen() {
 }
 
 void PathTracer::stop() {
+  
   switch (state) {
     case INIT:
     case READY:
@@ -155,10 +156,11 @@ void PathTracer::stop() {
     case RENDERING:
       continueRaytracing = false;
     case DONE:
-      for (int i = 0; i < numWorkerThreads; i++) {
-        workerThreads[i]->join();
-        delete workerThreads[i];
-      }
+ //   printf("State:%d\n", state);
+      // for (int i = 0; i < numWorkerThreads; i++) {
+      //   workerThreads[i]->join();
+      //   delete workerThreads[i];
+      // }
       state = READY;
       break;
   }
@@ -613,7 +615,9 @@ void PathTracer::worker_thread() {
 
   WorkItem work;
 
-  #pragma omp parallel for schedule(dynamic) 
+#ifdef OMP
+  //#pragma omp parallel for schedule(dynamic) 
+#endif
   for (size_t y = 0; y < sampleBuffer.h; y ++) {
  //   fprintf(stdout, "Threads:%d!\n", omp_get_num_threads()); 
     for (size_t x = 0; x < sampleBuffer.w; x ++) {
