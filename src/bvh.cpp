@@ -2,7 +2,7 @@
 
 #include "CMU462/CMU462.h"
 #include "static_scene/triangle.h"
-
+#include <omp.h>
 #include <iostream>
 #include <stack>
 #include <memory.h>
@@ -259,10 +259,10 @@ void BVHAccel::splitNode(const std::vector<Primitive *> &_primitives, BVHNode* n
 
 BBox BVHAccel::get_bbox() const { return root->bb; }
 
-bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
+bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 {
 	BVHNode* node = root;
-	stack<BVHNode*> s;
+	
 //	q.push(root);
 
 	// double t0, t1;
@@ -273,10 +273,14 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
 	double lt0, lt1, rt0, rt1;
 
 	// TODO!!!
-	int threadCount = 10;
-	int pid = 0;
-	int M[threadCount];
-	memset(M, 0, threadCount * sizeof(int));
+
+	#ifdef OMP
+		int pid = omp_get_thread_num();
+		// printf("%d %d\n",pid, omp_get_num_threads());
+	#else
+		int pid = 0;
+	#endif
+
 
 	BVHNode* near;
 	BVHNode* far;
@@ -284,7 +288,7 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
 	while(true)
 	{
 		// when it's leaf, intersect directly
-		
+		#pragma omp barrier
 		if(node->isLeaf())
 		{	
 
@@ -294,10 +298,24 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
 					hit = true;
 				}
 			}
+			#pragma omp barrier	//TODO??	
 			if(s.empty())
+			{
+				printf("HERE \n");
 				break;
+			}
+				
+			
 			node = s.top();
-			s.pop();	
+			#pragma omp barrier	//TODO??	
+			if(pid == 0)
+			{
+				printf("pop\n");
+				s.pop();
+			}
+			#pragma omp barrier	//TODO??
+					
+			
 		}
 		else
 		{
@@ -306,23 +324,33 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
 			int hitright = (bool)node->r->bb.intersect(ray, rt0, rt1);
 
 			/* Use parallel and barrier to init */
-			for(int i = 0; i <= 3; i++)
-				M[i] = 0;
-
+			// for(int i = 0; i <= 3; i++)
+			// 	M[i] = 0;
+			M[pid] = 0;
+			sum = 0;
 			// TODO: barrier here
+			#pragma omp barrier
 			M[2*hitleft + hitright] = 1;
 			// TODO: barrier here
-			//  if(2*hitleft + hitright == 3 )//&& 2*hitleft + hitright != 3)
-			// printf("%d %d %d\n",2*hitleft + hitright, M[2*hitleft + hitright], M[3] );
+			#pragma omp barrier
+			
+			//printf("%d %d %d\n", M[1], M[2], M[3]);
+			
 			/* Visit both children */
 			if(M[3] || (M[1] && M[2]))
 			{
 		//		printf("HERE!!\n");
 				/* Decide which to go in first */
+				
 				M[pid] = 2 * (hitright && (rt0 < lt0)) - 1;
 
 				/* TODO: PARLLEL SUM OVER HERE */
-				if(M[pid] < 0)
+				#pragma omp atomic
+				sum += M[pid];
+
+				#pragma omp barrier
+				
+				if(sum < 0)
 				{
 					near = node->l;
 					far = node->r;
@@ -332,9 +360,12 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
 					near = node->r;
 					far = node->l;
 				}
-				s.push(far);
+
+				if(pid == 0)
+					s.push(far);
 				node = near;
-			
+				
+				
 			}
 			else if(M[2])
 			{
@@ -350,18 +381,33 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)const
 				
 			else
 			{
+				#pragma omp barrier	//TODO??
+
 				if(s.empty())
+				{
+					printf("HERE2 \n"); 
 					break;
+				}
+				else
+				{
+					printf("NOT HERE2\n"); 
+				}
+				
+				
+			
 				
 				node = s.top();
+				#pragma omp barrier	//TODO??
+				if(pid == 0)
 				s.pop();
+				#pragma omp barrier	//TODO??
 			}
 			
 			
 		}
 		
 	}
-
+	
 	return hit;
 
 }
@@ -421,7 +467,7 @@ bool BVHAccel::intersect(const Ray &ray) const {
   // with a BVH aggregate if and only if it intersects a primitive in
   // the BVH that is not an aggregate.
 	Intersection isect;
-	return intersectWithNode( ray, &isect);
+	return intersectWithNode(root, ray, &isect);
   //bool hit = false;
   //for (size_t p = 0; p < primitives.size(); ++p) {
   //  if (primitives[p]->intersect(ray)) hit = true;
@@ -430,7 +476,7 @@ bool BVHAccel::intersect(const Ray &ray) const {
   //return hit;
 }
 
-bool BVHAccel::intersect(const Ray &ray, Intersection *isect) const {
+bool BVHAccel::intersect(const Ray &ray, Intersection *isect)  {
   // TODO (PathTracer):
   // Implement ray - bvh aggregate intersection test. A ray intersects
   // with a BVH aggregate if and only if it intersects a primitive in

@@ -412,13 +412,13 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
 #ifdef ENABLE_RAY_LOGGING
     log_ray_miss(r);
 #endif
-
+printf("END1\n");
     // TODO (PathTracer):
     // (Task 7) If you have an environment map, return the Spectrum this ray
     // samples from the environment map. If you don't return black.
     return Spectrum(0, 0, 0);
   }
-
+printf("END2\n");
 // log ray hit
 #ifdef ENABLE_RAY_LOGGING
   log_ray_hit(r, isect.t);
@@ -517,33 +517,37 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
   // (3) evaluate weighted reflectance contribution due 
   // to light from this direction
 
-  if (r.depth > max_ray_depth)
-	  return L_out;
-  //printf("depth:%d %d\n", r.depth, max_ray_depth);
 
-  // new ray direction and light
-  Vector3D wi;
-  float pdf;
-  Spectrum f = isect.bsdf->sample_f(w_out, &wi, &pdf);
+// :(
+//   if (r.depth > max_ray_depth)
+// 	  return L_out;
+//   //printf("depth:%d %d\n", r.depth, max_ray_depth);
 
-  // terminate
-  float terminateProbability = f.illum();
-  terminateProbability = terminateProbability > 1 ? 1 : terminateProbability;	
-  terminateProbability = 1.f - terminateProbability;
+//   // new ray direction and light
+//   Vector3D wi;
+//   float pdf;
+//   Spectrum f = isect.bsdf->sample_f(w_out, &wi, &pdf);
 
-  float randomFloat = ((float)std::rand() / RAND_MAX);
-  //printf("randomFloat:%f terminateProbability:%f\n", randomFloat, terminateProbability);
-  if (randomFloat < terminateProbability)
-	  return L_out;
+//   // terminate
+//   float terminateProbability = f.illum();
+//   terminateProbability = terminateProbability > 1 ? 1 : terminateProbability;	
+//   terminateProbability = 1.f - terminateProbability;
 
-  wi = o2w * wi;
-  Ray newRay = Ray(hit_p + EPS_D * wi, wi, (int)r.depth + 1);
+//   float randomFloat = ((float)std::rand() / RAND_MAX);
+//   //printf("randomFloat:%f terminateProbability:%f\n", randomFloat, terminateProbability);
+//   if (randomFloat < terminateProbability)
+// 	  return L_out;
+
+//   wi = o2w * wi;
+//   Ray newRay = Ray(hit_p + EPS_D * wi, wi, (int)r.depth + 1);
   
-  Spectrum newSpectrum = f * trace_ray(newRay) * fabs((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)));
- //printf("!test back:%f color: %f %f %f\n", fabs(((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)))), temp.r, temp.g, temp.b);
-  //printf("%f %f %f\n", newSpectrum.r, newSpectrum.g, newSpectrum.b);
+//   Spectrum newSpectrum = f * trace_ray(newRay) * fabs((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)));
+//  //printf("!test back:%f color: %f %f %f\n", fabs(((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)))), temp.r, temp.g, temp.b);
+//   //printf("%f %f %f\n", newSpectrum.r, newSpectrum.g, newSpectrum.b);
 
-  L_out += newSpectrum;
+//   L_out += newSpectrum;
+
+
   return L_out;
 }
 
@@ -552,7 +556,7 @@ Spectrum PathTracer::raytrace_pixel(size_t x, size_t y) {
   // Sample the pixel with coordinate (x,y) and return the result spectrum.
   // The sample rate is given by the number of camera rays per pixel.
 //	fprintf(stdout, "HERE!\n");
-	
+
   int num_samples = ns_aa;
   Spectrum res = Spectrum(0,0,0);
   double px, py;
@@ -573,7 +577,7 @@ Spectrum PathTracer::raytrace_pixel(size_t x, size_t y) {
 	  res += trace_ray(camera->generate_ray(px, py));
 //	  printf("%f %f %f\n", res.r, res.g, res.b);
   }
-
+//printf(" %d %d END\n",x ,y);
   return res * (1.0 / num_samples);
 }
 
@@ -615,20 +619,45 @@ void PathTracer::worker_thread() {
 
   WorkItem work;
 
-#ifdef OMP
-  //#pragma omp parallel for schedule(dynamic) 
-#endif
+  int batchNum = (sampleBuffer.w + BATCHSIZE - 1) / BATCHSIZE;
+
+
   for (size_t y = 0; y < sampleBuffer.h; y ++) {
  //   fprintf(stdout, "Threads:%d!\n", omp_get_num_threads()); 
-    for (size_t x = 0; x < sampleBuffer.w; x ++) {
+    // for (size_t x = 0; x < sampleBuffer.w; x ++) {
       //disable thread
     //  workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
-        if(continueRaytracing)
-        {
-              Spectrum s = raytrace_pixel(x, y);
-              sampleBuffer.update_pixel(s, x, y);
+        // if(continueRaytracing)
+        // {
+
+          for(int i = 0; i < batchNum; i++)
+          {
+            int batchStart = i * BATCHSIZE;
+            int batchEnd = batchStart + BATCHSIZE;
+            if(batchEnd > sampleBuffer.w)
+              batchEnd = sampleBuffer.w;
+          
+
+          #ifdef OMP
+            omp_set_num_threads(BATCHSIZE);
+            #pragma omp parallel for schedule(dynamic) 
+          #endif
+            for(int j = batchStart; j < batchEnd; j++)
+            {
+              printf("%d %d BEGIN\n", j, y);    
+              Spectrum s = raytrace_pixel(j, y);
+              printf("%d %d\n", j, y);  
               
-        }
+              sampleBuffer.update_pixel(s, j, y);
+                      
+
+            }
+          //    printf("HERE\n")
+          }
+
+
+              
+        // }
 
         // if(continueRaytracing)
         //     raytrace_tile(x, y, imageTileSize, imageTileSize);
@@ -640,7 +669,7 @@ void PathTracer::worker_thread() {
         //   return;
         // }
 
-      }
+      // }
   }
 sampleBuffer.toColor(frameBuffer, 0, 0, sampleBuffer.w, sampleBuffer.h);
   timer.stop();

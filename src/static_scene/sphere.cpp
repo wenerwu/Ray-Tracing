@@ -53,7 +53,7 @@ bool Sphere::intersect(const Ray& r) const {
  // return false;
 }
 
-bool Sphere::intersect(const Ray& r, Intersection* isect) const {
+bool Sphere::intersect(const Ray& r, Intersection* isect) {
   // TODO (PathTracer):
   // Implement ray - sphere intersection.
   // Note again that you might want to use the the Sphere::test helper here.

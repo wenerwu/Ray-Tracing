@@ -5,7 +5,9 @@
 #include "static_scene/aggregate.h"
 
 #include <vector>
+#include <stack>
 
+#define BATCHSIZE 16
 namespace CMU462 {
 namespace StaticScene {
 
@@ -67,7 +69,7 @@ class BVHAccel : public Aggregate {
   void destroyNode(BVHNode* node);
 
   bool intersectWithNode(BVHNode* node, const Ray &ray, Intersection *isect) const;
-   bool intersectWithNode(const Ray &ray, Intersection *isect) const;
+   bool intersectWithNode(const Ray &ray, Intersection *isect);
   /*
    * Split a BVHNode to get child node
    */
@@ -102,7 +104,7 @@ class BVHAccel : public Aggregate {
    * \return true if the given ray intersects with the aggregate,
              false otherwise
    */
-  bool intersect(const Ray& r, Intersection* i) const;
+  bool intersect(const Ray& r, Intersection* i);
 
   /**
    * Get BSDF of the surface material
@@ -129,6 +131,13 @@ class BVHAccel : public Aggregate {
 
  private:
   BVHNode* root;  ///< root node of the BVH
+  
+  /* Shared Memory */
+  std::stack<BVHNode*> s;
+  int M[BATCHSIZE];
+  BVHNode* left;
+  BVHNode* right;
+  int sum;
 };
 
 }  // namespace StaticScene

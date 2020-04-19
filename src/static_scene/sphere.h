@@ -51,7 +51,7 @@ class Sphere : public Primitive {
    * \return true if the given ray intersects with the sphere,
              false otherwise
    */
-  bool intersect(const Ray& r, Intersection* i) const;
+  bool intersect(const Ray& r, Intersection* i);
 
   /**
    * Get BSDF.

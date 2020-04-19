@@ -40,7 +40,7 @@ class Primitive {
    * \return true if the given ray intersects with the primitive,
              false otherwise
    */
-  virtual bool intersect(const Ray& r, Intersection* i) const = 0;
+  virtual bool intersect(const Ray& r, Intersection* i)= 0;
 
   /**
    * Get BSDF.

@@ -60,7 +60,7 @@ bool Triangle::intersect(const Ray& r) const {
   return true;
 }
 
-bool Triangle::intersect(const Ray& r, Intersection* isect) const {
+bool Triangle::intersect(const Ray& r, Intersection* isect) {
 //	printf("HERE!");
   // TODO (PathTracer):
   // implement ray-triangle intersection. When an intersection takes

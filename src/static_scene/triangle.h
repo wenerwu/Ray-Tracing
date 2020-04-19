@@ -53,8 +53,8 @@ class Triangle : public Primitive {
    * \return true if the given ray intersects with the triangle,
              false otherwise
    */
-  bool intersect(const Ray& r, Intersection* i) const;
-
+  bool intersect(const Ray& r, Intersection* i);
+  
   /**
    * Get BSDF.
    * In the case of a triangle, the surface material BSDF is stored in
