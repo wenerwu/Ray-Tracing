@@ -5,6 +5,8 @@
 #include "../image.h"
 #include "scene.h"
 
+#include <vector> 
+
 namespace CMU462 {
 namespace StaticScene {
 
@@ -41,10 +43,13 @@ class EnvironmentLight : public SceneLight {
    * - Handling the edge cases correctly (what happens if you wrap around the
    *   environment map horizontally? What about vertically?).
    */
-  Spectrum sample_dir(const Ray& r, double theta, double phi) const;
+  Spectrum sample_dir(const Ray& r) const;
 
+  Vector2D randomFindPixel() const;
+ 
  private:
   const HDRImageBuffer* envMap;
+  std::vector<std::vector<double>> probabilityStack;
 };  // class EnvironmentLight
 
 }  // namespace StaticScene

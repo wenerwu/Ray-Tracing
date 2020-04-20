@@ -50,7 +50,7 @@ Spectrum DiffuseBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
 Spectrum MirrorBSDF::f(const Vector3D& wo, const Vector3D& wi) {
  // return Spectrum();
 	Vector3D normal = Vector3D(0, 0, 1);
-	return reflectance * cos(dot(wo, normal));
+	return reflectance * (fabs(1.0/ dot(wo, normal)));// dot(wo, normal));
 }
 
 Spectrum MirrorBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
@@ -59,7 +59,7 @@ Spectrum MirrorBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
 	reflect(wo, wi);
 	*pdf = 1;
 
-	return f(wo, *wi);		//?
+	return f(wo, *wi);	
 }
 
 // Glossy BSDF //
@@ -91,21 +91,10 @@ Spectrum RefractionBSDF::sample_f(const Vector3D& wo, Vector3D* wi,
 // Glass BSDF //
 
 Spectrum GlassBSDF::f(const Vector3D& wo, const Vector3D& wi) {
-	//Vector3D normal = Vector3D(0, 0, 1);
-	//float ni = ior;
-	//float nt = 1.f;
-	//if (cos(dot(wo, normal)) < 0)
-	//{
-	//	ni = 1.f;
-	//	nt = ior;
-	//}
-
-	//double res = nt * nt / (ni * ni) * (1=)
-
-	return Spectrum();
+return Spectrum();
 
 }
-
+	
 Spectrum GlassBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
   // TODO (PathTracer):
   // Compute Fresnel coefficient and either reflect or refract based on it.
@@ -116,54 +105,62 @@ Spectrum GlassBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
 		reflect(wo, wi);
 		*pdf = 1;
 		
-		return reflectance * cos(dot(wo, normal));
-	}
-
-	double cosi = cos(dot(wo, normal));
-	double cost = cos(dot(*wi, normal));
-
+		return reflectance  * (1.f / fabs(dot(*wi, normal)));
+	} 
+	
+	double cosi = dot(wo, normal);
+	double cost = dot(*wi, normal);
+	
 	float ni = ior;
 	float nt = 1.f;
-	if (cosi < 0)
+	if (cost < 0)
 	{
 		ni = 1.f;
 		nt = ior;
-		cosi = abs(cosi);
+	}	
+	double sint = sqrt(1 - cost * cost);
+	double sini = nt / ni * sint;	// another direction of total internal!!!!
+
+	double Fr;
+	if(sini > 1)
+	{
+		Fr = 1;
 	}
+	else
+	{
+		cosi = fabs(cosi);
+		cost = fabs(cost);
 
-	double r1 = (nt * cosi - ni * cost) / (nt * cosi + ni * cost);
-	double r2 = (ni * cosi - nt * cost) / (ni * cosi + nt * cost);
+		double r1 = (nt * cosi - ni * cost) / (nt * cosi + ni * cost);
+		double r2 = (ni * cosi - nt * cost) / (ni * cosi + nt * cost);
 
-	double Fr = 0.5 * (r1 * r1 + r2 * r2);
+		Fr = 0.5 * (r1 * r1 + r2 * r2);
+	}
 	
-	//printf("%f\n", Fr);
+
 
 	float randomFloat = ((float)std::rand() / RAND_MAX);
 	if (randomFloat < Fr)
 	{
 		*pdf = Fr;
 		reflect(wo, wi);
-		
 
-		return reflectance * Fr * cos(dot(wo, normal));
+		return reflectance * Fr * (1.f / fabs(dot(*wi, normal)));
 
 	}
-	else
+	else 
 	{
 		*pdf = 1 - Fr;
-	//	printf("%f\n", cos(dot(wo, normal)));
-		return transmittance * (1 - Fr) * cos(dot(wo, normal));
+		return transmittance * (1 - Fr) * (ni * ni / nt / nt ) * (1.f / fabs(dot(*wi, normal))) ;
 	}
-
-	//return;
- // return Spectrum();
 }
 
 void BSDF::reflect(const Vector3D& wo, Vector3D* wi) {
   // TODO (PathTracer):
   // Implement reflection of wo about normal (0,0,1) and store result in wi.
-	Vector3D normal = Vector3D(0, 0, 1);
-	*wi = 2 * normal - wo;
+
+	*wi = Vector3D(-wo.x, -wo.y, wo.z);
+
 }
 
 bool BSDF::refract(const Vector3D& wo, Vector3D* wi, float ior) {
@@ -175,31 +172,30 @@ bool BSDF::refract(const Vector3D& wo, Vector3D* wi, float ior) {
 	Vector3D normal = Vector3D(0, 0, 1);
 	float ni = ior;	
 	float nt = 1.f;
-	
-	double coso = cos(dot(wo, normal));
+	//cos_theta(*wi);
+	double coso = dot(wo, normal);
 	if (coso < 0)
 	{
 		ni = 1.f;
 		nt = ior;
-		coso = abs(coso);
+	//	coso = abs(coso);
 	}
+
 	double sino = sqrt(1 - coso * coso);
 
 	double sini = sino * nt / ni;
-	if (sini > 1)
-		return false;
+	if (sini >= 1)
+		return false; 
 	
 	double cosi = sqrt(1 - sini * sini);
-//	printf("%f %f %f\n", sini, (wo - coso * normal).y, wo.y);
-	//*wi = -coso / cosi * wo;
 
-	//*wi = -cosi * normal + sini / sino * (coso * normal + wo);
-//	if (coso < 0)
-		*wi = -cosi * normal - sini * (wo - coso * normal).unit();
-	//else
-	//	*wi = cosi * normal + sini  * (wo - coso * normal).unit();
-	//Vector3D TX = (wo - normal * coso).unit();
-	//*wi = - cosi * normal - TX * sini;
+	Vector3D zfrac = Vector3D(0, 0, wo.z);
+	zfrac.normalize();
+	Vector3D xfrac = Vector3D(wo.x, wo.y, 0); 
+	xfrac.normalize();
+
+	*wi = -zfrac * cosi -  xfrac * sini;
+
 	return true;
 }
 

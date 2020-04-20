@@ -7,3 +7,4 @@ build_debug
 .idea/
 .vscode
 cmake-build-debug/
+*.tgz

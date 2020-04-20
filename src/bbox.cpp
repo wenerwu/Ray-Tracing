@@ -29,7 +29,6 @@ bool BBox::intersect(const Ray &r, double &t0, double &t1) const {
 	{
 		tminx = (max.x - r.o.x)*r.inv_d.x;
 		tmaxx = (min.x - r.o.x)*r.inv_d.x;
-	//	printf("TEST:%g, %g\n", max.x, min.x);
 	}
 
 	if (r.sign[1] == 0)
@@ -56,9 +55,9 @@ bool BBox::intersect(const Ray &r, double &t0, double &t1) const {
 
 	double tmin = std::max(std::max(tminx, tminy), tminz);
 	double tmax = std::min(std::min(tmaxx, tmaxy), tmaxz);
-	//printf("%g %g %g\n", tmin, tmax);
-	bool res = tmin > tmax;// || tmin < r.min_t;// || tmax > r.max_t;
-//	printf("%g %g %g %g\n", tmin, tmax, r.min_t, r.max_t);
+
+	bool res = tmin > tmax;
+
 	if (res)
 		return false;
 

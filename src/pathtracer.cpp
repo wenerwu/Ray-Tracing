@@ -406,19 +406,12 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
     // (Task 7) If you have an environment map, return the Spectrum this ray
     // samples from the environment map. If you don't return black.
 
-    // if(this->envLight)
-    // {
-    //   double Xi1 = (double)(std::rand()) / RAND_MAX * 2 - 1;
-    //   double Xi2 = (double)(std::rand()) / RAND_MAX;	
-
-    //   double theta = acos(Xi1);
-    //   double phi = 2.0 * PI * Xi2;
-
-    //   Spectrum light_L = this->envLight->sample_dir(r, theta, phi);
-    // //  printf("%f %f %f\n",light_L.r, light_L.g, light_L.b);
-    //   return light_L;
-    // }
-    // else
+    if(this->envLight)
+    {
+      Spectrum light_L = this->envLight->sample_dir(r);
+      return light_L;
+    }
+    else
       return Spectrum(0, 0, 0);
   }
 
@@ -480,7 +473,6 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
         // the surface normal is [0 0 1]
         const Vector3D& w_in = w2o * dir_to_light;
 
-   //     printf("  %f %f %f    \n ", w_in.x, w_in.y, w_in.z);
         if (w_in.z < 0) continue;
 
           // note that computing dot(n,w_in) is simple
@@ -499,11 +491,11 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
 
         Ray shadow = Ray(o, dir_to_light, dist, 0);
         shadow.min_t = EPS_D;
-    //    printf("GO THROUGH    ");
+
         if(!bvh->intersect(shadow))
         {
           Spectrum tmp = 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
-    //      printf("HERE2 %f %f %f       %f %f %f      %f\n", f.r, f.g, f.b, light_L.r,  light_L.g, light_L.b, num_light_samples * pr);
+ 
           L_out += 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
         }
           
@@ -542,16 +534,15 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
   terminateProbability = 1.f - terminateProbability;
 
   float randomFloat = ((float)std::rand() / RAND_MAX);
-  //printf("randomFloat:%f terminateProbability:%f\n", randomFloat, terminateProbability);
   if (randomFloat < terminateProbability)
 	  return L_out;
 
   wi = o2w * wi;
+  wi.normalize();
   Ray newRay = Ray(hit_p + EPS_D * wi, wi, (int)r.depth + 1);
   
   Spectrum newSpectrum = f * trace_ray(newRay) * fabs((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)));
- //printf("!test back:%f color: %f %f %f\n", fabs(((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)))), temp.r, temp.g, temp.b);
-  //printf("%f %f %f\n", newSpectrum.r, newSpectrum.g, newSpectrum.b);
+
 
   L_out += newSpectrum;
   return L_out;

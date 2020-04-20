@@ -66,7 +66,6 @@ int BVHAccel::compute_Bucket(Primitive *primitive, int bucketSize, int axis, int
 
 	while (left != right)
 	{
-	//	printf("%d %d\n", center, centroid);
 		int mid = (left + right) / 2;
 		if (center == centroid)
 			return mid;
@@ -128,7 +127,6 @@ void BVHAccel::splitNode(const std::vector<Primitive *> &_primitives, BVHNode* n
 	if (node->range <= max_leaf_size)
 		return;
 
-	//	printf("RANGE:%d\n", node->range);
 	BBox leftbb, rightbb;
 	size_t i;
 	int start = node->start;
@@ -138,7 +136,6 @@ void BVHAccel::splitNode(const std::vector<Primitive *> &_primitives, BVHNode* n
 	double SN = node->bb.surface_area();
 
 	int step = range < BUCKETSIZE ? 1 : range/BUCKETSIZE + 1; 
-	//step = std::min(step, (int)max_leaf_size);
 	vector<double> min_cost(3, INF_D);
 	vector<int> min_index(3, step);
 
@@ -174,7 +171,6 @@ void BVHAccel::splitNode(const std::vector<Primitive *> &_primitives, BVHNode* n
 
 			for (j = 0; j < i; j++)
 			{
-			//	printf("left:%d %g\n", start + j, primitives[start + j]->get_bbox().max.x);
 				left.expand(primitives[start + j]->get_bbox());
 				leftCount++;
 			}
@@ -191,18 +187,14 @@ void BVHAccel::splitNode(const std::vector<Primitive *> &_primitives, BVHNode* n
 			if (rightCount)
 				SAH += 1.0 * rightCount * right.surface_area();
 
-
-	//			printf("%d %d %d || %g   %g %g %g   %g %g %g\n", i, leftCount, rightCount, SAH, left.extent.x, left.extent.y, left.extent.z, right.extent.x, right.extent.y, right.extent.z);
 			if (SAH < min_cost[axis])
 			{
 				min_cost[axis] = SAH;
 				min_index[axis] = i;
-				//			printf("HERE! %d %d\n", min_index, i);
 			}
-			
-	//		printf("%d\n", step);
+
 		}
-	//	printf("\n");
+
 	}
 
 	int min_axis = 0;
