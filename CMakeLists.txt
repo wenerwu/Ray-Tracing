@@ -166,6 +166,8 @@ find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenMP REQUIRED)
 
+set(CUDA_TOOLKIT_ROOT_DIR /usr/local/depot/cuda-10.2/)
+find_package(CUDA REQUIRED)
 if (NOT WIN32)
   find_package(Freetype REQUIRED)
 endif ()

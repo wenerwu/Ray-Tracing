@@ -71,10 +71,23 @@ link_directories(
   ${FREETYPE_LIBRARY_DIRS}
 )
 
+#CUDA
+set(
+  CUDA_NVCC_FLAGS
+  ${CUDA_NVCC_FLAGS};
+  -O3 -gencode arch=compute_61,code=sm_61
+  --std=c++11
+  )
+
+cuda_add_library(cuda_lib
+  cuda/test.cu
+  )
+
+
 #-------------------------------------------------------------------------------
 # Add executable
 #-------------------------------------------------------------------------------
-add_executable(scotty3d ${APPLICATION_SOURCE})
+cuda_add_executable(scotty3d ${APPLICATION_SOURCE})
 
 target_link_libraries( scotty3d
     CMU462 ${CMU462_LIBRARIES}
@@ -83,6 +96,7 @@ target_link_libraries( scotty3d
     ${OPENGL_LIBRARIES}
     ${FREETYPE_LIBRARIES}
     ${CMAKE_THREADS_INIT}
+    cuda_lib ${CUDA_LIBRARIES}
 )
 
 #-------------------------------------------------------------------------------

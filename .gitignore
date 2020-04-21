@@ -6,3 +6,5 @@ build_debug
 *.sublime-project
 .idea/
 cmake-build-debug/
+.vscode
+.sh
