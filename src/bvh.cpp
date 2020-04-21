@@ -478,7 +478,8 @@ bool BVHAccel::intersect(const Ray &ray, Intersection *isect)  {
   // You should store the non-aggregate primitive in the intersection data
   // and not the BVH aggregate itself.
 
-	return intersectWithNode(ray, isect);
+//	return intersectWithNode(ray, isect);
+	return intersectWithNode(root, ray, isect);
   //bool hit = false;
   //for (size_t p = 0; p < primitives.size(); ++p) {
   //  if (primitives[p]->intersect(ray, isect)) hit = true;

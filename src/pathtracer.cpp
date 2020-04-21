@@ -527,36 +527,38 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
 
 
 // :(
-//   if (r.depth > max_ray_depth)
-// 	  return L_out;
-//   //printf("depth:%d %d\n", r.depth, max_ray_depth);
+ // #ifndef OMP
+  if (r.depth > max_ray_depth)
+	  return L_out;
+  //printf("depth:%d %d\n", r.depth, max_ray_depth);
 
-//   // new ray direction and light
-//   Vector3D wi;
-//   float pdf;
-//   Spectrum f = isect.bsdf->sample_f(w_out, &wi, &pdf);
+  // new ray direction and light
+  Vector3D wi;
+  float pdf;
+  Spectrum f = isect.bsdf->sample_f(w_out, &wi, &pdf);
 
-//   // terminate
-//   float terminateProbability = f.illum();
-//   terminateProbability = terminateProbability > 1 ? 1 : terminateProbability;	
-//   terminateProbability = 1.f - terminateProbability;
+  // terminate
+  float terminateProbability = f.illum();
+  terminateProbability = terminateProbability > 1 ? 1 : terminateProbability;	
+  terminateProbability = 1.f - terminateProbability;
 
-//   float randomFloat = ((float)std::rand() / RAND_MAX);
-//   //printf("randomFloat:%f terminateProbability:%f\n", randomFloat, terminateProbability);
-//   if (randomFloat < terminateProbability)
-// 	  return L_out;
+  float randomFloat = ((float)std::rand() / RAND_MAX);
+  //printf("randomFloat:%f terminateProbability:%f\n", randomFloat, terminateProbability);
+  if (randomFloat < terminateProbability)
+	  return L_out;
 
-//   wi = o2w * wi;
-//   Ray newRay = Ray(hit_p + EPS_D * wi, wi, (int)r.depth + 1);
+  wi = o2w * wi;
+  Ray newRay = Ray(hit_p + EPS_D * wi, wi, (int)r.depth + 1);
   
-//   Spectrum newSpectrum = f * trace_ray(newRay) * fabs((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)));
-//  //printf("!test back:%f color: %f %f %f\n", fabs(((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)))), temp.r, temp.g, temp.b);
-//   //printf("%f %f %f\n", newSpectrum.r, newSpectrum.g, newSpectrum.b);
+  Spectrum newSpectrum = f * trace_ray(newRay) * fabs((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)));
+ //printf("!test back:%f color: %f %f %f\n", fabs(((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)))), temp.r, temp.g, temp.b);
+  //printf("%f %f %f\n", newSpectrum.r, newSpectrum.g, newSpectrum.b);
 
-//   L_out += newSpectrum;
-
+  L_out += newSpectrum;
+//#endif
 
   return L_out;
+
 }
 
 Spectrum PathTracer::raytrace_pixel(size_t x, size_t y) {
@@ -632,52 +634,46 @@ void PathTracer::worker_thread() {
 
   for (size_t y = 0; y < sampleBuffer.h; y ++) {
  //   fprintf(stdout, "Threads:%d!\n", omp_get_num_threads()); 
-    // for (size_t x = 0; x < sampleBuffer.w; x ++) {
-      //disable thread
-    //  workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
-        // if(continueRaytracing)
-        // {
 
-          for(int i = 0; i < batchNum; i++)
-          {
-            int batchStart = i * BATCHSIZE;
-            int batchEnd = batchStart + BATCHSIZE;
-            if(batchEnd > sampleBuffer.w)
-              batchEnd = sampleBuffer.w;
+   #ifdef OMP
+    #pragma omp parallel for schedule(dynamic) 
+  #endif
+    for (size_t x = 0; x < sampleBuffer.w; x ++) {
+              Spectrum s = raytrace_pixel(x, y);
+              
+              sampleBuffer.update_pixel(s, x, y);
+
+        //   for(int i = 0; i < batchNum; i++)
+        //   {
+        //     int batchStart = i * BATCHSIZE;
+        //     int batchEnd = batchStart + BATCHSIZE;
+        //     if(batchEnd > sampleBuffer.w)
+        //       batchEnd = sampleBuffer.w;
           
 
-          #ifdef OMP
-            omp_set_num_threads(BATCHSIZE);
-            #pragma omp parallel for schedule(dynamic) 
-          #endif
-            for(int j = batchStart; j < batchEnd; j++)
-            {
-        //      printf("%d %d BEGIN\n", j, y);    
-              Spectrum s = raytrace_pixel(j, y);
-        //      printf("%d %d\n", j, y);  
+        //   #ifdef OMP
+        //     omp_set_num_threads(BATCHSIZE);
+        //     #pragma omp parallel for schedule(dynamic) 
+        //   #endif
+        //     for(int j = batchStart; j < batchEnd; j++)
+        //     {
+        // //      printf("%d %d BEGIN\n", j, y);    
+        //       Spectrum s = raytrace_pixel(j, y);
+        // //      printf("%d %d\n", j, y);  
               
-              sampleBuffer.update_pixel(s, j, y);
+        //       sampleBuffer.update_pixel(s, j, y);
                       
 
-            }
-          //    printf("HERE\n")
-          }
+        //     }
+        //   //    printf("HERE\n")
+        //   }
 
 
               
-        // }
-
-        // if(continueRaytracing)
+     }
         //     raytrace_tile(x, y, imageTileSize, imageTileSize);
 
-        // else{
-        //   timer.stop();
-        //   fprintf(stdout, "Canceled!\n");
-        //   state = READY;
-        //   return;
-        // }
 
-      // }
   }
 sampleBuffer.toColor(frameBuffer, 0, 0, sampleBuffer.w, sampleBuffer.h);
   timer.stop();
