@@ -1,6 +1,7 @@
 #include "pathtracer.h"
 #include "bsdf.h"
 #include "ray.h"
+#include "bvh.h"
 
 #include <stack>
 #include <random>
@@ -412,13 +413,20 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
 #ifdef ENABLE_RAY_LOGGING
     log_ray_miss(r);
 #endif
-printf("END1\n");
+
     // TODO (PathTracer):
     // (Task 7) If you have an environment map, return the Spectrum this ray
     // samples from the environment map. If you don't return black.
-    return Spectrum(0, 0, 0);
+
+    if(this->envLight)
+    {
+      Spectrum light_L = this->envLight->sample_dir(r);
+      return light_L;
+    }
+    else
+      return Spectrum(0, 0, 0);
   }
-printf("END2\n");
+
 // log ray hit
 #ifdef ENABLE_RAY_LOGGING
   log_ray_hit(r, isect.t);
@@ -644,9 +652,9 @@ void PathTracer::worker_thread() {
           #endif
             for(int j = batchStart; j < batchEnd; j++)
             {
-              printf("%d %d BEGIN\n", j, y);    
+        //      printf("%d %d BEGIN\n", j, y);    
               Spectrum s = raytrace_pixel(j, y);
-              printf("%d %d\n", j, y);  
+        //      printf("%d %d\n", j, y);  
               
               sampleBuffer.update_pixel(s, j, y);
                       

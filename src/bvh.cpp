@@ -7,6 +7,7 @@
 #include <stack>
 #include <memory.h>
 
+
 #define BUCKETSIZE 16
 using namespace std;
 
@@ -301,7 +302,7 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 			#pragma omp barrier	//TODO??	
 			if(s.empty())
 			{
-				printf("HERE \n");
+			//	printf("HERE \n");
 				break;
 			}
 				
@@ -310,7 +311,7 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 			#pragma omp barrier	//TODO??	
 			if(pid == 0)
 			{
-				printf("pop\n");
+			//	printf("pop\n");
 				s.pop();
 			}
 			#pragma omp barrier	//TODO??
@@ -385,17 +386,10 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 
 				if(s.empty())
 				{
-					printf("HERE2 \n"); 
+				//	printf("HERE2 \n");
 					break;
 				}
-				else
-				{
-					printf("NOT HERE2\n"); 
-				}
-				
-				
-			
-				
+						
 				node = s.top();
 				#pragma omp barrier	//TODO??
 				if(pid == 0)

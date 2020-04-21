@@ -8,6 +8,8 @@
 #include <stack>
 
 #define BATCHSIZE 16
+
+#define OMP 1
 namespace CMU462 {
 namespace StaticScene {
 
