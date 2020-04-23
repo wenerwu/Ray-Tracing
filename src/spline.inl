@@ -7,6 +7,34 @@ inline T Spline<T>::cubicSplineUnitInterval(
     const T& position0, const T& position1, const T& tangent0,
     const T& tangent1, double normalizedTime, int derivative) {
   // TODO (Animation) Task 1a
+  double t = normalizedTime;
+  double t2 = t * t;
+  double t3 = t2 * t;
+
+  double h00 =  2 * t3 - 3 *  t2 + 1;
+  double h10 = t3 - 2 * t2 + t;
+  double h01 = -2 * t3 + 3 * t2;
+  double h11 = t3 - t2;
+
+  double h00_d = 6 * t2 - 6 * t;
+  double h10_d = 3 * t2 - 4 * t;
+  double h01_d = -6 * t2 + 6 * t;
+  double h11_d = 3 * t2 - 2 * t;
+
+  double h00_dd = 12 * t - 6;
+  double h10_dd = 6 * t - 4;
+  double h01_dd = -12 * t + 6;
+  double h11_dd = 6 * t - 2;
+
+  if(derivative == 0)
+    return h00 * position0 + h10 * tangent0 + h01 * position1 + h11 * tangent1;
+  else if(derivative == 1)
+    return h00_d * position0 + h10_d * tangent0 + h01_d * position1 + h11_d * tangent1;
+  else if(derivative == 2)
+    return h00_dd * position0 + h10_dd * tangent0 + h01_dd * position1 + h11_dd * tangent1;
+
+
+  printf("ERROR DERIVATIVE!\n");
   return T();
 }
 
@@ -15,10 +43,83 @@ inline T Spline<T>::cubicSplineUnitInterval(
 template <class T>
 inline T Spline<T>::evaluate(double time, int derivative) {
   // TODO (Animation) Task 1b
+  // for(auto it = knots.begin(); it != knots.end(); it++)
+  //   printf("%g ", it->first);
+  // printf("\n");
   if (knots.size() < 1)
     return T();
+  else if (knots.size() == 1)
+  {
+    if(derivative == 0)
+      return knots.begin()->second;
+    else 
+      return T();
+  }
+  else if (time <= knots.begin()->first)
+  {
+    if(derivative == 0)
+      return knots.begin()->second;
+    else 
+      return T();
+  }
+  else if (time >= knots.rbegin()->first)
+  {
+    if(derivative == 0)
+      return knots.rbegin()->second;
+    else 
+      return T();
+  }
   else
-    return knots.begin()->second;
+  {
+    auto iter2 = knots.upper_bound(time);
+    auto iter1 = iter2;
+    iter1 --;
+    double t0, t1, t2, t3;
+    T p0, p1, p2, p3;
+    t1 = iter1->first;
+    t2 = iter2->first;
+
+    p1 = iter1->second;
+    p2  =iter2->second;
+    if(iter1 == knots.begin())
+    {
+      // no iter0
+      t0 = t1 - (t2 - t1);
+      p0 = p1 - (p2 - p1);
+    }
+    else
+    { 
+      auto iter0 = iter1;
+      iter0 --;
+      t0 = iter0->first;
+      p0 = iter0->second;
+    }
+
+    auto iter3 = iter2;
+    iter3 ++;
+    
+    if(iter3 == knots.end())
+    {
+      // no iter3
+      t3 = t2 + (t2 - t1);
+      p3 = p2 + (p2 - p1);
+    }
+    else
+    {
+      t3 = iter3->first;
+      p3 = iter3->second;
+    }
+   
+    T m1 = (p2 - p0) / (t2 - t0);
+    T m2 = (p3 - p1) / (t3 - t1);
+
+    double normalizedTime = (time - t1) / (t2 - t1);
+    return cubicSplineUnitInterval(p1, p2, m1, m2, normalizedTime, derivative);
+
+   //  return T();
+  }
+  
+
 }
 
 // Removes the knot closest to the given time,
