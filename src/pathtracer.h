@@ -193,6 +193,8 @@ class PathTracer {
    */
   void log_ray_hit(const Ray& r, double hit_t);
 
+  void customized_render();
+
   enum State {
     INIT,       ///< to be initialized
     READY,      ///< initialized ready to do stuff
@@ -201,6 +203,7 @@ class PathTracer {
     DONE        ///< started and completed raytracing
   };
 
+  bool normalRender;
   // Configurables //
 
   State state;     ///< current state

@@ -20,6 +20,7 @@
 #include "static_scene/triangle.h"
 #include "static_scene/light.h"
 
+#define RENDERTHRESHOLD 10000
 
 using namespace CMU462::StaticScene;
 
@@ -158,10 +159,14 @@ void PathTracer::stop() {
       continueRaytracing = false;
     case DONE:
  //   printf("State:%d\n", state);
-      // for (int i = 0; i < numWorkerThreads; i++) {
-      //   workerThreads[i]->join();
-      //   delete workerThreads[i];
-      // }
+      if(normalRender)
+      {
+        for (int i = 0; i < numWorkerThreads; i++) {
+          workerThreads[i]->join();
+          delete workerThreads[i];
+        }
+      }
+
       state = READY;
       break;
   }
@@ -202,26 +207,35 @@ void PathTracer::start_raytracing() {
   num_tiles_h = sampleBuffer.h / imageTileSize + 1;
   tile_samples.resize(num_tiles_w * num_tiles_h);
   memset(&tile_samples[0], 0, num_tiles_w * num_tiles_h * sizeof(int));
+  
+  if(normalRender)
+  {
+      // populate the tile work queue
+    for (size_t y = 0; y < sampleBuffer.h; y += imageTileSize) {
+      for (size_t x = 0; x < sampleBuffer.w; x += imageTileSize) {
+        workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
+      }
+    }
 
-  // populate the tile work queue
+    // launch threads
+    fprintf(stdout, "[PathTracer] Rendering... ");
+    fflush(stdout);
+
+
+    for (int i = 0; i < 1; i++) {
+      workerThreads[i] = new std::thread(&PathTracer::worker_thread, this);
+    }
+  }
+  else
+  {
+    fprintf(stdout, "[PathTracer] Rendering... ");
+    fflush(stdout);
+
+    customized_render(); 
+  }
   
 
-  // for (size_t y = 0; y < sampleBuffer.h; y += imageTileSize) {
-  //   for (size_t x = 0; x < sampleBuffer.w; x += imageTileSize) {
-  //     //disable thread
-  //   //  workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
-  //     raytrace_tile(x, y, imageTileSize, imageTileSize);
-  //   }
-  // }
 
-  // launch threads
-  fprintf(stdout, "[PathTracer] Rendering... ");
-  fflush(stdout);
-
-  worker_thread(); 
-  // for (int i = 0; i < 1; i++) {
-  //   workerThreads[i] = new std::thread(&PathTracer::worker_thread, this);
-  // }
 }
 
 void PathTracer::build_accel() {
@@ -237,6 +251,10 @@ void PathTracer::build_accel() {
     primitives.insert(primitives.end(), obj_prims.begin(), obj_prims.end());
   }
   timer.stop();
+  if(primitives.size() < RENDERTHRESHOLD)
+    normalRender = true;
+  else
+    normalRender = false;
   fprintf(stdout, "Done! (%.4f sec)\n", timer.duration());
   
   // build BVH //
@@ -623,7 +641,7 @@ void PathTracer::raytrace_tile(int tile_x, int tile_y, int tile_w, int tile_h) {
                        tile_end_y);
 }
 
-void PathTracer::worker_thread() {
+void PathTracer::customized_render() {
   Timer timer;
   timer.start();
 
@@ -631,54 +649,45 @@ void PathTracer::worker_thread() {
 
   int batchNum = (sampleBuffer.w + BATCHSIZE - 1) / BATCHSIZE;
 
-
-  for (size_t y = 0; y < sampleBuffer.h; y ++) {
- //   fprintf(stdout, "Threads:%d!\n", omp_get_num_threads()); 
-
-   #ifdef OMP
+  #ifdef OMP
     #pragma omp parallel for schedule(dynamic) 
   #endif
-    for (size_t x = 0; x < sampleBuffer.w; x ++) {
-              Spectrum s = raytrace_pixel(x, y);
-              
-              sampleBuffer.update_pixel(s, x, y);
-
-        //   for(int i = 0; i < batchNum; i++)
-        //   {
-        //     int batchStart = i * BATCHSIZE;
-        //     int batchEnd = batchStart + BATCHSIZE;
-        //     if(batchEnd > sampleBuffer.w)
-        //       batchEnd = sampleBuffer.w;
-          
-
-        //   #ifdef OMP
-        //     omp_set_num_threads(BATCHSIZE);
-        //     #pragma omp parallel for schedule(dynamic) 
-        //   #endif
-        //     for(int j = batchStart; j < batchEnd; j++)
-        //     {
-        // //      printf("%d %d BEGIN\n", j, y);    
-        //       Spectrum s = raytrace_pixel(j, y);
-        // //      printf("%d %d\n", j, y);  
-              
-        //       sampleBuffer.update_pixel(s, j, y);
-                      
-
-        //     }
-        //   //    printf("HERE\n")
-        //   }
+  for (size_t y = 0; y < sampleBuffer.h; y += imageTileSize) {
+    for (size_t x = 0; x < sampleBuffer.w; x += imageTileSize) {
+      //disable thread
+    //  workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
+      raytrace_tile(x, y, imageTileSize, imageTileSize);
+    }
+  } 
 
 
-              
-     }
-        //     raytrace_tile(x, y, imageTileSize, imageTileSize);
-
-
-  }
-sampleBuffer.toColor(frameBuffer, 0, 0, sampleBuffer.w, sampleBuffer.h);
+  sampleBuffer.toColor(frameBuffer, 0, 0, sampleBuffer.w, sampleBuffer.h);
   timer.stop();
   fprintf(stdout, "Done! (%.4fs)\n", timer.duration());
   state = DONE;
+}
+
+void PathTracer::worker_thread() {
+  Timer timer;
+  timer.start();
+
+  WorkItem work;
+  while (continueRaytracing && workQueue.try_get_work(&work)) {
+    raytrace_tile(work.tile_x, work.tile_y, work.tile_w, work.tile_h);
+  }
+
+  workerDoneCount++;
+  if (!continueRaytracing && workerDoneCount == numWorkerThreads) {
+    timer.stop();
+    fprintf(stdout, "Canceled!\n");
+    state = READY;
+  }
+
+  if (continueRaytracing && workerDoneCount == numWorkerThreads) {
+    timer.stop();
+    fprintf(stdout, "Done! (%.4fs)\n", timer.duration());
+    state = DONE;
+  }
 }
 
 void PathTracer::increase_area_light_sample_count() {
