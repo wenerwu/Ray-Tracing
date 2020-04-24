@@ -1,0 +1,287 @@
+diff --git a/src/application.cpp b/src/application.cpp
+index 14e24f7..532a8b7 100644
+--- a/src/application.cpp
++++ b/src/application.cpp
+@@ -46,6 +46,9 @@ Application::Application(AppConfig config) {
+   readyWrite = false;
+   readyLoad = false;
+   useCapsuleRadius = true;
++
++  screenW = config.pathtracer_result_width;
++  screenH = config.pathtracer_result_height;
+ }
+ 
+ Application::~Application() {
+@@ -59,9 +62,6 @@ void Application::init() {
+     scene = nullptr;
+   }
+ 
+-  textManager.init(use_hdpi);
+-  text_color = Color(1.0, 1.0, 1.0);
+-
+   // Setup all the basic internal state to default values,
+   // as well as some basic OpenGL state (like depth testing
+   // and lighting).
+@@ -74,24 +74,33 @@ void Application::init() {
+   show_coordinates = true;
+   show_hud = true;
+ 
+-  // Lighting needs to be explicitly enabled.
+-  glEnable(GL_LIGHTING);
++  // When rendering "headless" we don't want to spin up an OpenGL context,
++  // so that users can SSH into a machine to test their pathtracer.
++  // Headless mode is enabled when the -w flag is passed.
++  if (!init_headless) {
++      // Lighting needs to be explicitly enabled.
++      glEnable(GL_LIGHTING);
++
++      // Enable anti-aliasing and circular points.
++      glEnable(GL_LINE_SMOOTH);
++      // glEnable( GL_POLYGON_SMOOTH ); // XXX causes cracks!
++      glEnable(GL_POINT_SMOOTH);
++      glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
++      // glHint( GL_POLYGON_SMOOTH_HINT, GL_NICEST );
++      glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
++
++      // initialize fbos
++      glGenFramebuffers(1, &backface_fbo);
++      glGenFramebuffers(1, &frntface_fbo);
++      glGenTextures(1, &backface_color_tex);
++      glGenTextures(1, &backface_depth_tex);
++      glGenTextures(1, &frntface_color_tex);
++      glGenTextures(1, &frntface_depth_tex);
++
++      textManager.init(use_hdpi);
++      text_color = Color(1.0, 1.0, 1.0);
++  }
+ 
+-  // Enable anti-aliasing and circular points.
+-  glEnable(GL_LINE_SMOOTH);
+-  // glEnable( GL_POLYGON_SMOOTH ); // XXX causes cracks!
+-  glEnable(GL_POINT_SMOOTH);
+-  glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+-  // glHint( GL_POLYGON_SMOOTH_HINT, GL_NICEST );
+-  glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+-
+-  // initialize fbos
+-  glGenFramebuffers(1, &backface_fbo);
+-  glGenFramebuffers(1, &frntface_fbo);
+-  glGenTextures(1, &backface_color_tex);
+-  glGenTextures(1, &backface_depth_tex);
+-  glGenTextures(1, &frntface_color_tex);
+-  glGenTextures(1, &frntface_depth_tex);
+ 
+   // Initialize styles (colors, line widths, etc.) that will be used
+   // to draw different types of mesh elements in various situations.
+@@ -106,7 +115,8 @@ void Application::init() {
+   // NOTE: there's a chicken-and-egg problem here, because load()
+   // requires init, and init requires init_camera (which is only called by
+   // load()).
+-  screenW = screenH = 600;  // Default value
++  if (screenW == 0 || screenH == 0)
++    screenW = screenH = 600;
+   CameraInfo cameraInfo;
+   cameraInfo.hFov = 20;
+   cameraInfo.vFov = 28;
+@@ -384,7 +394,6 @@ void Application::resize(size_t w, size_t h) {
+   screenW = w;
+   screenH = h;
+   camera.set_screen_size(w, h);
+-  textManager.resize(w, h);
+   set_projection_matrix();
+   if (mode != MODEL_MODE) {
+     pathtracer->set_frame_size(w, h);
+@@ -392,6 +401,11 @@ void Application::resize(size_t w, size_t h) {
+   timeline.resize(w, 64);
+   timeline.move(0, h - 64);
+ 
++  if (init_headless)
++      return;
++
++  textManager.resize(w, h);
++
+   auto set_params = [](bool depth) {
+     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+@@ -440,10 +454,12 @@ void Application::resize(size_t w, size_t h) {
+ }
+ 
+ void Application::set_projection_matrix() {
+-  glMatrixMode(GL_PROJECTION);
+-  glLoadIdentity();
+-  gluPerspective(camera.v_fov(), camera.aspect_ratio(), camera.near_clip(),
+-                 camera.far_clip());
++  if (!init_headless) {
++    glMatrixMode(GL_PROJECTION);
++    glLoadIdentity();
++    gluPerspective(camera.v_fov(), camera.aspect_ratio(), camera.near_clip(),
++                   camera.far_clip());
++  }
+ }
+ 
+ string Application::name() { return "Scotty3D"; }
+@@ -2189,7 +2205,14 @@ void Application::render_scene(std::string saveFileLocation) {
+   set_up_pathtracer();
+   pathtracer->start_raytracing();
+ 
+-  while(!pathtracer->is_done()) {
++  auto is_done = [this]() {
++      if(init_headless)
++          return pathtracer->is_done_headless();
++      else
++          return pathtracer->is_done();
++  };
++
++  while(!is_done()) {
+     std::this_thread::sleep_for(std::chrono::milliseconds(5));
+   }
+ 
+diff --git a/src/application.h b/src/application.h
+index 8d24b21..5a1b6ac 100644
+--- a/src/application.h
++++ b/src/application.h
+@@ -66,6 +66,8 @@ struct AppConfig {
+   size_t pathtracer_num_threads;
+   HDRImageBuffer* pathtracer_envmap;
+   std::string pathtracer_result_path;
++  size_t pathtracer_result_width = 800;
++  size_t pathtracer_result_height = 600;
+ };
+ 
+ class Application : public Renderer {
+@@ -96,6 +98,13 @@ class Application : public Renderer {
+ 
+   void render_scene(std::string saveFileLocation);
+ 
++  // Avoids spinning up an OpenGL context during initialization.
++  // This useful because it avoid issues with OpenGL when SSH'ed, so users
++  // can (for example) test their pathtracer output without requiring OpenGL.
++  // Note: The ONLY operation that is supported in headless mode is pathtracing.
++  //       the application will most likely crash if you try to call anything else.
++  bool init_headless = false;
++
+  private:
+   // Mode determines which type of data is visualized/
+   // which mode we're currently in (e.g., modeling vs. rendering vs. animation)
+diff --git a/src/main.cpp b/src/main.cpp
+index 29d04ee..43c496b 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -8,6 +8,8 @@
+ #include "image.h"
+ 
+ #include <iostream>
++#include <sstream>
++#include <string>
+ 
+ #ifndef gid_t
+ typedef unsigned int gid_t;  // XXX Needed on some platforms, since gid_t is
+@@ -31,6 +33,8 @@ void usage(const char* binaryName) {
+   printf("  -m  <INT>        Maximum ray depth\n");
+   printf("  -e  <PATH>       Path to environment map\n");
+   printf("  -w  <PATH>       Run Pathtracer without GUI, save render to PATH\n");
++  printf("  -d  <w>x<h>      Width and height of output when pathtracing without GUI.\n");
++  printf("                   Given via two integers with an x between them (e.g 800x600).\n");
+   printf("  -h               Print this help message\n");
+   printf("\n");
+ }
+@@ -75,7 +79,7 @@ int main(int argc, char** argv) {
+   // get the options
+   AppConfig config;
+   int opt;
+-  while ((opt = getopt(argc, argv, "s:l:t:m:e:w:h")) !=
++  while ((opt = getopt(argc, argv, "s:l:t:m:e:w:d:h")) !=
+          -1) {  // for each option...
+     switch (opt) {
+       case 's':
+@@ -98,6 +102,19 @@ int main(int argc, char** argv) {
+           config.pathtracer_result_path = optarg;
+         }
+         break;
++      case 'd':
++        if (optarg != nullptr) {
++            std::string wh = optarg;
++            std::stringstream ss(wh);
++            std::string tok;
++            if (std::getline(ss, tok, 'x'))
++                config.pathtracer_result_width = std::stoi(tok);
++            if (std::getline(ss, tok))
++                config.pathtracer_result_height = std::stoi(tok);
++            else
++                config.pathtracer_result_height = config.pathtracer_result_width * 3 / 4;
++        }
++        break;
+       default:
+         usage(argv[0]);
+         return 1;
+@@ -121,12 +138,30 @@ int main(int argc, char** argv) {
+     exit(0);
+   }
+ 
+-  // create viewer
+-  Viewer viewer = Viewer();
++  const bool headless = config.pathtracer_result_path != "";
+ 
+   // create application
+   Application app(config);
+ 
++  app.init_headless = headless;
++
++  if(headless) {
++      // Initialize the application headless (without OpenGL context)
++      // A Viewer() spins up an OpenGL context, so we have to call
++      // Application::init() manually (normally, the Viewer calls init()).
++      app.init();
++
++      // load scene
++      app.load(sceneInfo);
++
++      // Now render the scene in headless mode and exit.
++      app.render_scene(config.pathtracer_result_path);
++      exit(EXIT_SUCCESS);
++  }
++
++  // create viewer
++  Viewer viewer = Viewer();
++
+   // set renderer
+   viewer.set_renderer(&app);
+ 
+@@ -141,12 +176,6 @@ int main(int argc, char** argv) {
+   // NOTE (sky): are we copying everything to dynamic scene? If so:
+   // TODO (sky): check and make sure the destructor is freeing everything
+ 
+-  // Run in terminal mode if requested
+-  if(config.pathtracer_result_path != "") {
+-    app.render_scene(config.pathtracer_result_path);
+-    exit(EXIT_SUCCESS);
+-  }
+-
+   // start viewer
+   viewer.start();
+ 
+diff --git a/src/pathtracer.h b/src/pathtracer.h
+index 2540be4..8b2ddfe 100644
+--- a/src/pathtracer.h
++++ b/src/pathtracer.h
+@@ -142,10 +142,19 @@ class PathTracer {
+   void save_image(string filename);
+ 
+   /**
+-   * Wait for the scene to finish raytracing.
++   * Wait for the scene to finish raytracing.  Additionally calls
++   * update_screen to update the screen with the current output.
+    */
+   bool is_done();
+ 
++  /**
++   * Same as is_done, but does not make a call to update_screen.
++   * Used in headless mode when there is no OpenGL context.
++   */
++  bool is_done_headless() {
++      return state == DONE;
++  }
++
+  private:
+   /**
+    * Used in initialization.

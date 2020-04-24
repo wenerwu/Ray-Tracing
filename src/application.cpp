@@ -46,6 +46,9 @@ Application::Application(AppConfig config) {
   readyWrite = false;
   readyLoad = false;
   useCapsuleRadius = true;
+
+  screenW = config.pathtracer_result_width;
+  screenH = config.pathtracer_result_height;
 }
 
 Application::~Application() {
@@ -59,9 +62,6 @@ void Application::init() {
     scene = nullptr;
   }
 
-  textManager.init(use_hdpi);
-  text_color = Color(1.0, 1.0, 1.0);
-
   // Setup all the basic internal state to default values,
   // as well as some basic OpenGL state (like depth testing
   // and lighting).
@@ -74,24 +74,33 @@ void Application::init() {
   show_coordinates = true;
   show_hud = true;
 
-  // Lighting needs to be explicitly enabled.
-  glEnable(GL_LIGHTING);
+  // When rendering "headless" we don't want to spin up an OpenGL context,
+  // so that users can SSH into a machine to test their pathtracer.
+  // Headless mode is enabled when the -w flag is passed.
+  if (!init_headless) {
+      // Lighting needs to be explicitly enabled.
+      glEnable(GL_LIGHTING);
 
-  // Enable anti-aliasing and circular points.
-  glEnable(GL_LINE_SMOOTH);
-  // glEnable( GL_POLYGON_SMOOTH ); // XXX causes cracks!
-  glEnable(GL_POINT_SMOOTH);
-  glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-  // glHint( GL_POLYGON_SMOOTH_HINT, GL_NICEST );
-  glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+      // Enable anti-aliasing and circular points.
+      glEnable(GL_LINE_SMOOTH);
+      // glEnable( GL_POLYGON_SMOOTH ); // XXX causes cracks!
+      glEnable(GL_POINT_SMOOTH);
+      glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+      // glHint( GL_POLYGON_SMOOTH_HINT, GL_NICEST );
+      glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
 
-  // initialize fbos
-  glGenFramebuffers(1, &backface_fbo);
-  glGenFramebuffers(1, &frntface_fbo);
-  glGenTextures(1, &backface_color_tex);
-  glGenTextures(1, &backface_depth_tex);
-  glGenTextures(1, &frntface_color_tex);
-  glGenTextures(1, &frntface_depth_tex);
+      // initialize fbos
+      glGenFramebuffers(1, &backface_fbo);
+      glGenFramebuffers(1, &frntface_fbo);
+      glGenTextures(1, &backface_color_tex);
+      glGenTextures(1, &backface_depth_tex);
+      glGenTextures(1, &frntface_color_tex);
+      glGenTextures(1, &frntface_depth_tex);
+
+      textManager.init(use_hdpi);
+      text_color = Color(1.0, 1.0, 1.0);
+  }
+
 
   // Initialize styles (colors, line widths, etc.) that will be used
   // to draw different types of mesh elements in various situations.
@@ -106,7 +115,8 @@ void Application::init() {
   // NOTE: there's a chicken-and-egg problem here, because load()
   // requires init, and init requires init_camera (which is only called by
   // load()).
-  screenW = screenH = 600;  // Default value
+  if (screenW == 0 || screenH == 0)
+    screenW = screenH = 600;
   CameraInfo cameraInfo;
   cameraInfo.hFov = 20;
   cameraInfo.vFov = 28;
@@ -315,9 +325,8 @@ void Application::render() {
         scene->render_splines_at(timeline.getCurrentFrame(),
                                timeline.isCurrentlyPlaying(), useCapsuleRadius, depth);
 
-        if(!depth && !noGUI) {
+        if(!depth) {
           enter_2D_GL_draw_mode();
-          timeline.mouse_over(mouseX, mouseY);
           timeline.draw();
           exit_2D_GL_draw_mode();
         }
@@ -325,6 +334,7 @@ void Application::render() {
 
       if (action == Action::Rasterize_Video) {
         rasterize_video();
+        return;
       }
       break;
   }
@@ -384,13 +394,17 @@ void Application::resize(size_t w, size_t h) {
   screenW = w;
   screenH = h;
   camera.set_screen_size(w, h);
-  textManager.resize(w, h);
   set_projection_matrix();
   if (mode != MODEL_MODE) {
     pathtracer->set_frame_size(w, h);
   }
   timeline.resize(w, 64);
   timeline.move(0, h - 64);
+
+  if (init_headless)
+      return;
+
+  textManager.resize(w, h);
 
   auto set_params = [](bool depth) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -440,16 +454,17 @@ void Application::resize(size_t w, size_t h) {
 }
 
 void Application::set_projection_matrix() {
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
-  gluPerspective(camera.v_fov(), camera.aspect_ratio(), camera.near_clip(),
-                 camera.far_clip());
+  if (!init_headless) {
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(camera.v_fov(), camera.aspect_ratio(), camera.near_clip(),
+                   camera.far_clip());
+  }
 }
 
 string Application::name() { return "Scotty3D"; }
 
 string Application::info() {
-  if(noGUI) { return ""; }
   switch (mode) {
     case MODEL_MODE:
       return "MeshEdit";
@@ -952,7 +967,6 @@ void Application::updateWidgets() {
 }
 
 void Application::keyboard_event(int key, int event, unsigned char mods) {
-  noGUI = false;
   switch (mode) {
     case ANIMATE_MODE:
       switch (key) {
@@ -1795,7 +1809,6 @@ void Application::set_up_pathtracer() {
 }
 
 void Application::rasterize_video() {
-  noGUI = true;
   scene->removeObject(scene->elementTransform);
   static string videoPrefix;
 
@@ -1808,21 +1821,12 @@ void Application::rasterize_video() {
 
     unsigned char *colors = new unsigned char[screenW * screenH * 4];
 
-    float *red =  new float[screenW * screenH];
-    float *green =  new float[screenW * screenH];
-    float *blue =  new float[screenW * screenH];
+    glReadPixels(0, 0, screenW, screenH, GL_RGBA, GL_UNSIGNED_BYTE, colors);
 
-    glReadBuffer( GL_FRONT );
-    glReadPixels(0, 0, screenW, screenH, GL_RED, GL_FLOAT, red);
-    glReadPixels(0, 0, screenW, screenH, GL_GREEN, GL_FLOAT, green);
-    glReadPixels(0, 0, screenW, screenH, GL_BLUE, GL_FLOAT, blue);
-    
-    for (int i = 0; i < screenW * screenH; i++) {
-      colors[4*i    ] = (unsigned char)(red[i] * 255);
-      colors[4*i + 1] = (unsigned char)(green[i] * 255);
-      colors[4*i + 2] = (unsigned char)(blue[i] * 255);
-      colors[4*i + 3] = 255;
-    } 
+    // Clear transparency
+    for (int i = 3; i < screenW * screenH * 4; i += 4) {
+      colors[i] = 255;
+    }
 
     uint32_t *frame = (uint32_t *)colors;
     size_t w = screenW;
@@ -2102,25 +2106,25 @@ void Application::draw_action() {
         break;
     }
     Color integrator_color(0.7, 0.3, 0.7);
-    draw_string(x0, y + 40, integrator_string.str(), size, integrator_color);
+    draw_string(x0, y + 30, integrator_string.str(), size, integrator_color);
     stringstream timestep_string;
     timestep_string << "Timestep: " << timestep;
-    draw_string(x0, y + 80, timestep_string.str(), size, integrator_color);
+    draw_string(x0, y + 60, timestep_string.str(), size, integrator_color);
     stringstream damping_string;
     damping_string << "Damping Factor: " << damping_factor;
-    draw_string(x0, y + 120, damping_string.str(), size, integrator_color);
+    draw_string(x0, y + 90, damping_string.str(), size, integrator_color);
     stringstream lbs_string;
     lbs_string << "Linear Blend Skinning: "
                << (useCapsuleRadius ? "Threshold" : "Naive");
-    draw_string(x0, y + 160, lbs_string.str(), size, integrator_color);
+    draw_string(x0, y + 120, lbs_string.str(), size, integrator_color);
 
     if(action == Action::CreateJoint) {
       stringstream sym_string;
       sym_string << "Joint Symmetry: " << (symmetryEnabled ? "Enabled" : "Disabled");
-      draw_string(x0, y + 200, sym_string.str(), size, integrator_color);
+      draw_string(x0, y + 150, sym_string.str(), size, integrator_color);
       stringstream axis_string;
       axis_string << "Symmetry Axis: " << ((char)symmetryAxis);
-      draw_string(x0, y + 240, axis_string.str(), size, integrator_color);
+      draw_string(x0, y + 180, axis_string.str(), size, integrator_color);
     }
   }
 
@@ -2201,7 +2205,14 @@ void Application::render_scene(std::string saveFileLocation) {
   set_up_pathtracer();
   pathtracer->start_raytracing();
 
-  while(!pathtracer->is_done()) {
+  auto is_done = [this]() {
+      if(init_headless)
+          return pathtracer->is_done_headless();
+      else
+          return pathtracer->is_done();
+  };
+
+  while(!is_done()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
 
@@ -2209,3 +2220,4 @@ void Application::render_scene(std::string saveFileLocation) {
 }
 
 }  // namespace CMU462
+

@@ -66,6 +66,8 @@ struct AppConfig {
   size_t pathtracer_num_threads;
   HDRImageBuffer* pathtracer_envmap;
   std::string pathtracer_result_path;
+  size_t pathtracer_result_width = 800;
+  size_t pathtracer_result_height = 600;
 };
 
 class Application : public Renderer {
@@ -96,6 +98,13 @@ class Application : public Renderer {
 
   void render_scene(std::string saveFileLocation);
 
+  // Avoids spinning up an OpenGL context during initialization.
+  // This useful because it avoid issues with OpenGL when SSH'ed, so users
+  // can (for example) test their pathtracer output without requiring OpenGL.
+  // Note: The ONLY operation that is supported in headless mode is pathtracing.
+  //       the application will most likely crash if you try to call anything else.
+  bool init_headless = false;
+
  private:
   // Mode determines which type of data is visualized/
   // which mode we're currently in (e.g., modeling vs. rendering vs. animation)
@@ -118,8 +127,6 @@ class Application : public Renderer {
     Rasterize_Video
   };
   Action action;
-
-  bool noGUI;
 
   enum class Integrator { Forward_Euler, Symplectic_Euler };
   Integrator integrator;
