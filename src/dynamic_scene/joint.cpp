@@ -44,6 +44,25 @@ StaticScene::SceneObject* Joint::get_static_object() { return nullptr; }
 // The real calculation.
 void Joint::calculateAngleGradient(Joint* goalJoint, Vector3D q) {
   // TODO (Animation) task 2B
+  Vector3D p_theta = goalJoint->getEndPosInWorld();
+  Vector3D diff = p_theta - q;
+
+  Joint* current = this;
+
+  while(current)
+  {
+    vector<Vector3D> rs;
+    current->getAxes(rs);
+    Vector3D p = goalJoint->getEndPosInWorld() - current->getBasePosInWorld();
+  //  goalJoint->getAxes
+    Vector3D J_theta_x = cross(rs[0], p);
+    Vector3D J_theta_y = cross(rs[1], p);
+    Vector3D J_theta_z = cross(rs[2], p);
+
+    current->ikAngleGradient += Vector3D(dot(J_theta_x, diff), dot(J_theta_y, diff), dot(J_theta_z, diff));
+    current = current->parent;
+  }
+
 }
 
 // The constructor sets the dynamic angle and velocity of
@@ -119,7 +138,7 @@ Matrix4x4 Joint::getTransformation() {
   Joint* p = parent;
   while(p)
   {
-    T = p->getTransformation() * Matrix4x4::translation(p->axis) * T;
+    T = p->SceneObject::getTransformation() * Matrix4x4::translation(p->axis) * T;
     p = p->parent;
   }
 
