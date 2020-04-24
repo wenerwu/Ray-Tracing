@@ -147,6 +147,9 @@ int main(int argc, char** argv) {
   }
 
   string sceneFilePath = argv[optind];
+#if MPI
+  if (mpi_id == 0)
+#endif
   msg("Input scene file: " << sceneFilePath);
 
   // parse scene
