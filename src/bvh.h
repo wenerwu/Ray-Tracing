@@ -1,6 +1,14 @@
 #ifndef CMU462_BVH_H
 #define CMU462_BVH_H
 
+#ifndef MPI
+#define MPI 1
+#endif
+
+#if MPI
+#include <mpi.h>
+#endif
+
 #include "static_scene/scene.h"
 #include "static_scene/aggregate.h"
 

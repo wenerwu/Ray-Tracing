@@ -34,11 +34,20 @@ namespace CMU462 {
 Application::Application(AppConfig config) {
   scene = nullptr;
 
+#if MPI
+  pathtracer =
+      new PathTracer(config.pathtracer_ns_aa, config.pathtracer_max_ray_depth,
+                     config.pathtracer_ns_area_light, config.pathtracer_ns_diff,
+                     config.pathtracer_ns_glsy, config.pathtracer_ns_refr,
+                     config.pathtracer_num_threads, config.pathtracer_envmap,
+                     config.pathtracer_mpi_pcount, config.pathtracer_mpi_id);
+#else
   pathtracer =
       new PathTracer(config.pathtracer_ns_aa, config.pathtracer_max_ray_depth,
                      config.pathtracer_ns_area_light, config.pathtracer_ns_diff,
                      config.pathtracer_ns_glsy, config.pathtracer_ns_refr,
                      config.pathtracer_num_threads, config.pathtracer_envmap);
+#endif
 
   timestep = 0.1;
   damping_factor = 0.0;

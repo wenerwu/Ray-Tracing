@@ -17,6 +17,14 @@ typedef unsigned int gid_t;  // XXX Needed on some platforms, since gid_t is
                              // (WARNING: May not be the right size!!)
 #endif
 
+#ifndef MPI
+#define MPI 1
+#endif
+
+#if MPI
+#include <mpi.h>
+#endif
+
 #include "getopt.h"
 
 using namespace std;
@@ -79,6 +87,17 @@ int main(int argc, char** argv) {
   // get the options
   AppConfig config;
   int opt;
+
+  int process_count;
+  int mpi_id;
+#if MPI
+  MPI_Init(NULL, NULL);
+  MPI_Comm_size(MPI_COMM_WORLD, &process_count);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_id);
+  config.pathtracer_mpi_pcount = process_count;
+  config.pathtracer_mpi_id = mpi_id;
+#endif
+
   while ((opt = getopt(argc, argv, "s:l:t:m:e:w:d:h")) !=
          -1) {  // for each option...
     switch (opt) {
@@ -184,6 +203,10 @@ int main(int argc, char** argv) {
   // not sure if this is due to the recent refactor but if anyone got some
   // free time, check the destructor for Application.
   exit(EXIT_SUCCESS);  // shamelessly faking it
+
+#if MPI
+    MPI_Finalize();
+#endif
 
   return 0;
 }

@@ -299,19 +299,24 @@ bool BVHAccel::intersectWithNode(BVHNode* node, const Ray &ray, Intersection *is
 	return res;
 }
 
+#define USE_BVH 1
+
 bool BVHAccel::intersect(const Ray &ray) const {
   // TODO (PathTracer):
   // Implement ray - bvh aggregate intersection test. A ray intersects
   // with a BVH aggregate if and only if it intersects a primitive in
   // the BVH that is not an aggregate.
+#if USE_BVH
 	Intersection isect;
 	return intersectWithNode(root, ray, &isect);
-  //bool hit = false;
-  //for (size_t p = 0; p < primitives.size(); ++p) {
-  //  if (primitives[p]->intersect(ray)) hit = true;
-  //}
+#else
+	bool hit = false;
+	for (size_t p = 0; p < primitives.size(); ++p) {
+	if (primitives[p]->intersect(ray)) hit = true;
+	}
 
-  //return hit;
+	return hit;
+#endif
 }
 
 bool BVHAccel::intersect(const Ray &ray, Intersection *isect) const {
@@ -322,13 +327,16 @@ bool BVHAccel::intersect(const Ray &ray, Intersection *isect) const {
   // You should store the non-aggregate primitive in the intersection data
   // and not the BVH aggregate itself.
 
+#if USE_BVH
 	return intersectWithNode(root, ray, isect);
-  //bool hit = false;
-  //for (size_t p = 0; p < primitives.size(); ++p) {
-  //  if (primitives[p]->intersect(ray, isect)) hit = true;
-  //}
+#else
+	bool hit = false;
+	for (size_t p = 0; p < primitives.size(); ++p) {
+	if (primitives[p]->intersect(ray, isect)) hit = true;
+	}
 
-  //return hit;
+	return hit;
+#endif
 }
 
 }  // namespace StaticScene

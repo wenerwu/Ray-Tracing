@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 
+# MPI CONFIGS
+find_package(MPI REQUIRED)
+
 # Application source
 set(APPLICATION_SOURCE
 
@@ -61,6 +64,11 @@ include_directories(
   ${FREETYPE_INCLUDE_DIRS}
 )
 
+if (MPI_FOUND)
+  include_directories(SYSTEM ${MPI_C_INCLUDE_PATH})
+else (MPI_FOUND)
+  message(SEND_ERROR "MPI NotFound")
+endif (MPI_FOUND)
 #-------------------------------------------------------------------------------
 # Set link directories
 #-------------------------------------------------------------------------------
@@ -83,8 +91,18 @@ target_link_libraries( scotty3d
     ${OPENGL_LIBRARIES}
     ${FREETYPE_LIBRARIES}
     ${CMAKE_THREADS_INIT}
+    ${MPI_C_LIBRARIES}
 )
 
+if (MPI_C_COMPILER_FLAGS)
+  set_target_properties(scotty3d PROPERTIES COMPILER_FLAGS "${MPI_C_COMPILER_FLAGS}")
+endif (MPI_C_COMPILER_FLAGS)
+
+if (MPI_C_LINK_FLAGS)
+  set_target_properties(scotty3d PROPERTIES LINK_FLAGS "${MPI_C_LINK_FLAGS}")
+else (MPI_C_LINK_FLAGS)
+  message(SEND_ERROR "NotFound MPI_C_LINK_FLAGS")
+endif (MPI_C_LINK_FLAGS)
 #-------------------------------------------------------------------------------
 # Platform-specific configurations for target
 #-------------------------------------------------------------------------------

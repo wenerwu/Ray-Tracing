@@ -1,6 +1,14 @@
 #ifndef CMU462_RAYTRACER_H
 #define CMU462_RAYTRACER_H
 
+#ifndef MPI
+#define MPI 1
+#endif
+
+#if MPI
+#include <mpi.h>
+#endif
+
 #include <stack>
 #include <thread>
 #include <atomic>
@@ -54,10 +62,18 @@ class PathTracer {
    * Default constructor.
    * Creates a new pathtracer instance.
    */
+#if MPI
+  PathTracer(size_t ns_aa = 1, size_t max_ray_depth = 4,
+             size_t ns_area_light = 1, size_t ns_diff = 1, size_t ns_glsy = 1,
+             size_t ns_refr = 1, size_t num_threads = 1,
+             HDRImageBuffer* envmap = NULL,
+             size_t mpi_pcount = 1, size_t mpi_id = 0);
+#else
   PathTracer(size_t ns_aa = 1, size_t max_ray_depth = 4,
              size_t ns_area_light = 1, size_t ns_diff = 1, size_t ns_glsy = 1,
              size_t ns_refr = 1, size_t num_threads = 1,
              HDRImageBuffer* envmap = NULL);
+#endif
 
   /**
    * Destructor.
@@ -263,6 +279,11 @@ class PathTracer {
   std::stack<BVHNode*> selectionHistory;  ///< node selection history
   std::vector<LoggedRay> rayLog;          ///< ray tracing log
   bool show_rays;                         ///< show rays from raylog
+
+#if MPI
+  size_t mpi_pcount;
+  size_t mpi_id;
+#endif
 };
 
 }  // namespace CMU462

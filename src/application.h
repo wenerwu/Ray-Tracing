@@ -1,6 +1,14 @@
 #ifndef CMU462_APPLICATION_H
 #define CMU462_APPLICATION_H
 
+#ifndef MPI
+#define MPI 1
+#endif
+
+#if MPI
+#include <mpi.h>
+#endif
+
 // STL
 #include <string>
 #include <iostream>
@@ -55,6 +63,10 @@ struct AppConfig {
     pathtracer_num_threads = 1;
     pathtracer_envmap = NULL;
     pathtracer_result_path = "";
+#if MPI
+    pathtracer_mpi_pcount = 1;
+    pathtracer_mpi_id = 0;
+#endif
   }
 
   size_t pathtracer_ns_aa;
@@ -68,6 +80,10 @@ struct AppConfig {
   std::string pathtracer_result_path;
   size_t pathtracer_result_width = 800;
   size_t pathtracer_result_height = 600;
+#if MPI
+  size_t pathtracer_mpi_pcount;
+  size_t pathtracer_mpi_id;
+#endif
 };
 
 class Application : public Renderer {

@@ -69,8 +69,8 @@ endif(APPLE)
 ##################
 set(LINUX UNIX AND NOT APPLE)
 if(LINUX)
-
-  # GCC configuration
+  
+# GCC configuration
   if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
 
     set(GCC_CXX_FLAGS "-std=gnu++11 -m64")
@@ -164,6 +164,7 @@ endif(WIN32)
 # Required packages
 find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
+find_package(MPI REQUIRED)
 if (NOT WIN32)
   find_package(Freetype REQUIRED)
 endif ()
@@ -177,6 +178,17 @@ else(BUILD_LIBCMU462)
   find_package(GLEW REQUIRED)
   find_package(GLFW REQUIRED)
 endif(BUILD_LIBCMU462)
+
+# MPI Configurations
+if (MPI_FOUND)
+  include_directories(SYSTEM ${MPI_C_INCLUDE_PATH})
+  message("${MPI_C_INCLUDE_PATH}")
+  message("${MPI_C_COMPILER_FLAGS}")
+  message("${MPI_C_LINK_FLAGS}")
+  message("${MPI_C_LIBRARIES}")
+else (MPI_FOUND)
+  message(SEND_ERROR "MPI not found")
+endif (MPI_FOUND)
 
 #-------------------------------------------------------------------------------
 # Add subdirectories
@@ -193,3 +205,8 @@ endif()
 
 # Install settings
 set(CMAKE_INSTALL_PREFIX "${Scotty3D_SOURCE_DIR}/")
+
+# My Settings
+#add_executable(Scotty3D "${Scotty3D_SOURCE_DIR}/src/main.cpp" ${Scotty3D_SOURCE_DIR})
+#set_target_properties(Scotty3D PROPERTIES LINKER_LANGUAGE CXX)
+
