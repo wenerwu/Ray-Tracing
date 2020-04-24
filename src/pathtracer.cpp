@@ -254,8 +254,14 @@ void PathTracer::start_raytracing() {
 
 void PathTracer::build_accel() {
   // collect primitives //
+#if MPI
+  if (mpi_id == 0) {
+#endif
   fprintf(stdout, "[PathTracer] Collecting primitives... ");
   fflush(stdout);
+#if MPI
+  }
+#endif
   timer.start();
   vector<Primitive *> primitives;
   for (SceneObject *obj : scene->objects) {
@@ -265,14 +271,26 @@ void PathTracer::build_accel() {
     primitives.insert(primitives.end(), obj_prims.begin(), obj_prims.end());
   }
   timer.stop();
+#if MPI
+  if (mpi_id == 0)
+#endif
   fprintf(stdout, "Done! (%.4f sec)\n", timer.duration());
   
   // build BVH //
+#if MPI
+  if (mpi_id == 0) {
+#endif
   fprintf(stdout, "[PathTracer] Building BVH... ");
   fflush(stdout);
+#if MPI
+  }
+#endif
   timer.start();
   bvh = new BVHAccel(primitives);
   timer.stop();
+#if MPI
+  if (mpi_id == 0)
+#endif
   fprintf(stdout, "Done! (%.4f sec)\n", timer.duration());
 
   // initial visualization //
@@ -665,6 +683,7 @@ void PathTracer::worker_thread() {
 
 #if MPI
   timer.stop();
+  if (mpi_id == 0)
   fprintf(stdout, "(%d) Done! (%.4fs)\n", mpi_id, timer.duration());
   state = DONE;
 #else
