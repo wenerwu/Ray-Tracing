@@ -161,32 +161,7 @@ void PathTracer::stop() {
     case RENDERING:
       continueRaytracing = false;
     case DONE:
-#if MPI
-    // TODO: collect framebuffer
-    int datalen = frameBuffer.data.size();
-    if (mpi_id == 0) {
-      fprintf(stdout, "[PathTracer] Collecting... ");
-      fflush(stdout);
-      Timer timer;
-      timer.start();
-      
-      MPI_Request requests[mpi_pcount-1];
-      uint32_t framebufferbuffer[mpi_pcount-1][datalen];
-      for (int pid = 1; pid < mpi_pcount; pid++) {
-        MPI_Recv(&framebufferbuffer[pid-1], datalen, MPI_UNSIGNED, pid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      }
-
-      // TODO: update framebuffer
-
-      timer.stop();
-      fprintf(stdout, "Done! (%.4f sec)\n", timer.duration());
-    }
-    else {
-      MPI_Request request;
-      MPI_Isend(frameBuffer.data.data(), datalen, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, &request);
-      MPI_Wait(&request, MPI_STATUS_IGNORE);
-    }
-#else
+#if !MPI
       for (int i = 0; i < numWorkerThreads; i++) {
         workerThreads[i]->join();
         delete workerThreads[i];
@@ -241,10 +216,18 @@ void PathTracer::start_raytracing() {
   }
 
   // launch threads
+#if MPI
+  if (mpi_id == 0) {
   fprintf(stdout, "[PathTracer] Rendering... ");
   fflush(stdout);
+  }
+#else
+  fprintf(stdout, "[PathTracer] Rendering... ");
+  fflush(stdout);
+#endif
 #if MPI
   worker_thread();
+  collect_frame_buffer();
 #else
   for (int i = 0; i < numWorkerThreads; i++) {
     workerThreads[i] = new std::thread(&PathTracer::worker_thread, this);
@@ -682,9 +665,10 @@ void PathTracer::worker_thread() {
 #endif
 
 #if MPI
+  MPI_Barrier(MPI_COMM_WORLD);
   timer.stop();
   if (mpi_id == 0)
-  fprintf(stdout, "(%d) Done! (%.4fs)\n", mpi_id, timer.duration());
+  fprintf(stdout, "Done! (%.4fs)\n", timer.duration());
   state = DONE;
 #else
   workerDoneCount++;
@@ -701,6 +685,68 @@ void PathTracer::worker_thread() {
   }
 #endif
 }
+
+#if MPI
+void PathTracer::collect_frame_buffer() {
+  // collect framebuffer
+  int datalen = frameBuffer.data.size();
+  if (mpi_id == 0) {
+    fprintf(stdout, "[PathTracer] Collecting frame... ");
+    fflush(stdout);
+    Timer timer;
+    timer.start();
+    
+    MPI_Request requests[mpi_pcount-1];
+    uint32_t framebufferbuffer[mpi_pcount-1][datalen];
+    memset(framebufferbuffer, 0, sizeof(uint32_t) * (mpi_pcount-1) * datalen);
+    for (int pid = 1; pid < mpi_pcount; pid++) {
+      MPI_Recv(&framebufferbuffer[pid-1], datalen, MPI_UNSIGNED, pid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    // update framebuffer
+    WorkItem work;
+    int round_count = 0;
+    while (workQueue.try_get_work_copy(&work)) {
+      int mpid = round_count % mpi_pcount;
+      round_count++;
+      if (mpid == 0) {
+        // fprintf(stdout, ".");
+        continue;
+      }
+      mpi_update_tile(framebufferbuffer[mpid-1], work.tile_x, work.tile_y, work.tile_w, work.tile_h);
+    }
+
+    timer.stop();
+    fprintf(stdout, "Done! (%.4f sec)\n", timer.duration());
+  }
+  else {
+    MPI_Request request;
+    MPI_Isend(frameBuffer.data.data(), datalen, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, &request);
+    MPI_Wait(&request, MPI_STATUS_IGNORE);
+  }
+}
+
+void PathTracer::mpi_update_tile(uint32_t *data, int tile_x, int tile_y, int tile_w, int tile_h) {
+  size_t w = sampleBuffer.w;
+  size_t h = sampleBuffer.h;
+
+  size_t tile_start_x = tile_x;
+  size_t tile_start_y = tile_y;
+
+  size_t tile_end_x = std::min(tile_start_x + tile_w, w);
+  size_t tile_end_y = std::min(tile_start_y + tile_h, h);
+
+  size_t tile_idx_x = tile_x / imageTileSize;
+  size_t tile_idx_y = tile_y / imageTileSize;
+  size_t num_samples_tile = tile_samples[tile_idx_x + tile_idx_y * num_tiles_w];
+
+  for (size_t y = tile_start_y; y < tile_end_y; y++) {
+    for (size_t x = tile_start_x; x < tile_end_x; x++) {
+      frameBuffer.data[x + y * w] = data[x + y * w];
+    }
+  }
+}
+#endif
 
 void PathTracer::increase_area_light_sample_count() {
   ns_area_light *= 2;

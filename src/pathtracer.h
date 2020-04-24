@@ -171,6 +171,19 @@ class PathTracer {
       return state == DONE;
   }
 
+#if MPI
+  /**
+   * MPI master thread collect render results from other threads.
+   */
+  void collect_frame_buffer();
+
+  /**
+   * Update a tile of the frame buffer of the MPI master with data computed
+   * by other threads.
+   */
+  void mpi_update_tile(uint32_t *data, int tile_x, int tile_y, int tile_w, int tile_h);
+#endif
+
  private:
   /**
    * Used in initialization.

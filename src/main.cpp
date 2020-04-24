@@ -175,8 +175,17 @@ int main(int argc, char** argv) {
 
       // Now render the scene in headless mode and exit.
       app.render_scene(config.pathtracer_result_path);
+#if MPI
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Finalize();
+#endif
       exit(EXIT_SUCCESS);
   }
+
+#if MPI
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Finalize();
+#endif
 
   // create viewer
   Viewer viewer = Viewer();
@@ -204,9 +213,6 @@ int main(int argc, char** argv) {
   // free time, check the destructor for Application.
   exit(EXIT_SUCCESS);  // shamelessly faking it
 
-#if MPI
-    MPI_Finalize();
-#endif
 
   return 0;
 }
