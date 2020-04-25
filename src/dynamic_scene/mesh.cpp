@@ -50,6 +50,46 @@ Mesh::Mesh(Collada::PolymeshInfo &polyMesh, const Matrix4x4 &transform) {
 
 void Mesh::linearBlendSkinning(bool useCapsuleRadius) {
   // TODO (Animation) Task 3a, Task 3b
+  for(auto v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++)
+  {
+    double dist_inv_sum = 0;
+    vector<LBSInfo*> infos;
+    for(auto joint = skeleton->joints.begin(); joint != skeleton->joints.end(); joint++)
+    {
+      Vector3D bindPos = joint->getBindTransformation().inv() * v->bindPosition();
+      Vector3D endPos = joint->getTransformation() * joint->getRotation() * bindPos;  // world coordination
+
+      // closest point on a segment
+      Vector3D segment = joint->axis;
+      Vector3D point = bindPos;
+      Vector3D closestPoint;
+
+      double dotRes = dot(point, segment);
+      double len = segment.norm();
+
+      if(dotRes < 0)
+      {
+        closestPoint = Vector3D(0,0,0);
+      }
+      else if(dotRes > len)
+      {
+        closestPoint = segment;
+      }
+      else
+      {
+        closestPoint = Vector3D(0,0,0) + (dotRes/len) * segment;
+      }
+      
+      double dist = (point - closestPoint).norm();
+      
+      
+      LBSInfo* info = LBSInfo();
+      info->blendPos = endPos;
+      info->distance = dist; 
+      infos.push_back(info);
+    }
+  }
+
 }
 
 void Mesh::forward_euler(float timestep, float damping_factor) {
