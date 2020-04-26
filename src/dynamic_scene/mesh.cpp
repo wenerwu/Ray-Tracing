@@ -53,25 +53,27 @@ void Mesh::linearBlendSkinning(bool useCapsuleRadius) {
   for(auto v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++)
   {
     double dist_inv_sum = 0;
-    vector<LBSInfo*> infos;
-    for(auto joint = skeleton->joints.begin(); joint != skeleton->joints.end(); joint++)
+    vector<LBSInfo> infos;
+    for(auto it = skeleton->joints.begin(); it != skeleton->joints.end(); it++)
     {
-      Vector3D bindPos = joint->getBindTransformation().inv() * v->bindPosition();
+      Joint *joint = *it;
+      Vector3D bindPos = joint->getBindTransformation().inv() * v->bindPosition;
       Vector3D endPos = joint->getTransformation() * joint->getRotation() * bindPos;  // world coordination
 
       // closest point on a segment
       Vector3D segment = joint->axis;
+      
       Vector3D point = bindPos;
       Vector3D closestPoint;
 
       double dotRes = dot(point, segment);
       double len = segment.norm();
 
-      if(dotRes < 0)
+      if(dotRes <= 0)
       {
         closestPoint = Vector3D(0,0,0);
       }
-      else if(dotRes > len)
+      else if(dotRes >= len)
       {
         closestPoint = segment;
       }
@@ -81,13 +83,36 @@ void Mesh::linearBlendSkinning(bool useCapsuleRadius) {
       }
       
       double dist = (point - closestPoint).norm();
-      
-      
-      LBSInfo* info = LBSInfo();
-      info->blendPos = endPos;
-      info->distance = dist; 
+
+      if(useCapsuleRadius && dist > joint->capsuleRadius) 
+        continue;
+        
+      LBSInfo info = LBSInfo();
+      info.blendPos = endPos;
+      info.distance = dist; 
       infos.push_back(info);
+
+      dist_inv_sum += 1.f / dist;
+    //  printf("%g %g\n",dist, dist_inv_sum);  
+    }  
+
+
+    if(infos.size() == 0)
+      v->position = v->bindPosition;
+    else
+    {
+      Vector3D pos = Vector3D(0,0,0);
+      for(auto it = infos.begin(); it != infos.end(); it++)
+      {
+        pos += 1.f / it->distance / dist_inv_sum * it->blendPos;
+      }
+      v->position = pos;
     }
+    
+
+
+
+    
   }
 
 }
