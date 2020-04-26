@@ -210,6 +210,7 @@ class PathTracer {
     DONE        ///< started and completed raytracing
   };
 
+public: 
   // Configurables //
 
   State state;     ///< current state

@@ -10,7 +10,7 @@
 
 #define BUCKETSIZE 16
 using namespace std;
-
+void testCudaPrintf();
 namespace CMU462 {
 namespace StaticScene {
 
@@ -262,6 +262,8 @@ BBox BVHAccel::get_bbox() const { return root->bb; }
 
 bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 {
+
+	testCudaPrintf();
 	BVHNode* node = root;
 	
 //	q.push(root);
@@ -273,14 +275,7 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 	bool res = false;
 	double lt0, lt1, rt0, rt1;
 
-	// TODO!!!
-
-	#ifdef OMP
-		int pid = omp_get_thread_num();
-		// printf("%d %d\n",pid, omp_get_num_threads());
-	#else
-		int pid = 0;
-	#endif
+	int pid = 0;
 
 
 	BVHNode* near;
@@ -289,7 +284,6 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 	while(true)
 	{
 		// when it's leaf, intersect directly
-		#pragma omp barrier
 		if(node->isLeaf())
 		{	
 
@@ -299,22 +293,17 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 					hit = true;
 				}
 			}
-			#pragma omp barrier	//TODO??	
 			if(s.empty())
 			{
-			//	printf("HERE \n");
 				break;
 			}
 				
 			
 			node = s.top();
-			#pragma omp barrier	//TODO??	
 			if(pid == 0)
 			{
-			//	printf("pop\n");
 				s.pop();
 			}
-			#pragma omp barrier	//TODO??
 					
 			
 		}
@@ -330,17 +319,16 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 			M[pid] = 0;
 			sum = 0;
 			// TODO: barrier here
-			#pragma omp barrier
+
 			M[2*hitleft + hitright] = 1;
 			// TODO: barrier here
-			#pragma omp barrier
-			
-			//printf("%d %d %d\n", M[1], M[2], M[3]);
+
+
 			
 			/* Visit both children */
 			if(M[3] || (M[1] && M[2]))
 			{
-		//		printf("HERE!!\n");
+
 				/* Decide which to go in first */
 				
 				M[pid] = 2 * (hitright && (rt0 < lt0)) - 1;

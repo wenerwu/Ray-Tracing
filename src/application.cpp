@@ -40,6 +40,8 @@ Application::Application(AppConfig config) {
                      config.pathtracer_ns_glsy, config.pathtracer_ns_refr,
                      config.pathtracer_num_threads, config.pathtracer_envmap);
 
+  cudapathtracer = new cudaPathTracer(pathtracer);
+
   timestep = 0.1;
   damping_factor = 0.0;
 
@@ -53,6 +55,7 @@ Application::Application(AppConfig config) {
 
 Application::~Application() {
   if (pathtracer != nullptr) delete pathtracer;
+  if (cudapathtracer != nullptr) delete cudapathtracer;
   if (scene != nullptr) delete scene;
 }
 
@@ -1810,6 +1813,12 @@ void Application::set_up_pathtracer() {
   pathtracer->set_frame_size(screenW, screenH);
 }
 
+void Application::set_up_cudapathtracer() {
+  cudapathtracer->set_camera(&camera);
+  cudapathtracer->set_scene(scene->get_static_scene());
+  cudapathtracer->set_frame_size(screenW, screenH);
+}
+
 void Application::rasterize_video() {
   noGUI = true;
   scene->removeObject(scene->elementTransform);
@@ -2140,95 +2149,47 @@ void Application::draw_action() {
     }
   }
 
-  // // No selection --> no messages.
-  // if (!scene->has_selection()) {
-  //   draw_string(x0, y, "No mesh feature is selected", size, text_color);
-  //   y += inc;
-  // } else {
-  //   DynamicScene::SelectionInfo selectionInfo = scene->get_selection_info();
-  //   for (const string& s : selectionInfo) {
-  //     size_t split = s.find_first_of(":");
-  //     if (split != string::npos) {
-  //       split++;
-  //       string s1 = s.substr(0,split);
-  //       string s2 = s.substr(split);
-  //       draw_string(x0, y, s1, size, text_color);
-  //       draw_string(x0 + (use_hdpi ? 150 : 75 ), y, s2, size, text_color);
-  //     } else {
-  //       draw_string(x0, y, s, size, text_color);
-  //     }
-  //     y += inc;
-  //   }
-  // }
 
-  // // -- First draw a lovely black rectangle.
-
-  // glPushAttrib(GL_VIEWPORT_BIT);
-  // glViewport(0, 0, screenW, screenH);
-
-  // glMatrixMode(GL_PROJECTION);
-  // glPushMatrix();
-  // glLoadIdentity();
-  // glOrtho(0, screenW, screenH, 0, 0, 1);
-
-  // glMatrixMode(GL_MODELVIEW);
-  // glPushMatrix();
-  // glLoadIdentity();
-  // glTranslatef(0, 0, -1);
-
-  // // -- Black with opacity .8;
-
-  // glColor4f(0.0, 0.0, 0.0, 0.8);
-
-  // float min_x = x0 - 32;
-  // float min_y = y0 - 32;
-  // float max_x = screenW;
-  // float max_y = y;
-
-  // float z = 0.0;
-
-  // glDisable(GL_DEPTH_TEST);
-  // glDisable(GL_LIGHTING);
-
-  // glBegin(GL_QUADS);
-
-  // glVertex3f(min_x, min_y, z);
-  // glVertex3f(min_x, max_y, z);
-  // glVertex3f(max_x, max_y, z);
-  // glVertex3f(max_x, min_y, z);
-  // glEnd();
-
-  // glMatrixMode(GL_PROJECTION);
-  // glPopMatrix();
-
-  // glMatrixMode(GL_MODELVIEW);
-  // glPopMatrix();
-
-  // glPopAttrib();
-
-  // glEnable(GL_LIGHTING);
-  // glEnable(GL_DEPTH_TEST);
 
   textManager.render();
 }
 
 void Application::render_scene(std::string saveFileLocation) {
 
+  
+  
+  // pathtracer->start_raytracing();
+
+  // auto is_done = [this]() {
+  //     if(init_headless)
+  //         return pathtracer->is_done_headless();
+  //     else
+  //         return pathtracer->is_done();
+  // };
+
+  // while(!is_done()) {
+  //   std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  // }
+
+  // pathtracer->save_image(saveFileLocation);
+
   set_up_pathtracer();
-  pathtracer->start_raytracing();
+  set_up_cudapathtracer();
+  
+  cudapathtracer->start_raytracing();
 
   auto is_done = [this]() {
       if(init_headless)
-          return pathtracer->is_done_headless();
+          return cudapathtracer->is_done_headless();
       else
-          return pathtracer->is_done();
+          return cudapathtracer->is_done();
   };
 
   while(!is_done()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
 
-  pathtracer->save_image(saveFileLocation);
+  cudapathtracer->save_image(saveFileLocation);
 }
 
 }  // namespace CMU462

@@ -527,35 +527,35 @@ Spectrum PathTracer::trace_ray(const Ray &r) {
 
 
 // :(
- // #ifndef OMP
-  if (r.depth > max_ray_depth)
-	  return L_out;
-  //printf("depth:%d %d\n", r.depth, max_ray_depth);
+//  // #ifndef OMP
+//   if (r.depth > max_ray_depth)
+// 	  return L_out;
+//   //printf("depth:%d %d\n", r.depth, max_ray_depth);
 
-  // new ray direction and light
-  Vector3D wi;
-  float pdf;
-  Spectrum f = isect.bsdf->sample_f(w_out, &wi, &pdf);
+//   // new ray direction and light
+//   Vector3D wi;
+//   float pdf;
+//   Spectrum f = isect.bsdf->sample_f(w_out, &wi, &pdf);
 
-  // terminate
-  float terminateProbability = f.illum();
-  terminateProbability = terminateProbability > 1 ? 1 : terminateProbability;	
-  terminateProbability = 1.f - terminateProbability;
+//   // terminate
+//   float terminateProbability = f.illum();
+//   terminateProbability = terminateProbability > 1 ? 1 : terminateProbability;	
+//   terminateProbability = 1.f - terminateProbability;
 
-  float randomFloat = ((float)std::rand() / RAND_MAX);
-  //printf("randomFloat:%f terminateProbability:%f\n", randomFloat, terminateProbability);
-  if (randomFloat < terminateProbability)
-	  return L_out;
+//   float randomFloat = ((float)std::rand() / RAND_MAX);
+//   //printf("randomFloat:%f terminateProbability:%f\n", randomFloat, terminateProbability);
+//   if (randomFloat < terminateProbability)
+// 	  return L_out;
 
-  wi = o2w * wi;
-  Ray newRay = Ray(hit_p + EPS_D * wi, wi, (int)r.depth + 1);
+//   wi = o2w * wi;
+//   Ray newRay = Ray(hit_p + EPS_D * wi, wi, (int)r.depth + 1);
   
-  Spectrum newSpectrum = f * trace_ray(newRay) * fabs((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)));
- //printf("!test back:%f color: %f %f %f\n", fabs(((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)))), temp.r, temp.g, temp.b);
-  //printf("%f %f %f\n", newSpectrum.r, newSpectrum.g, newSpectrum.b);
+//   Spectrum newSpectrum = f * trace_ray(newRay) * fabs((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)));
+//  //printf("!test back:%f color: %f %f %f\n", fabs(((float)dot(wi, isect.n) / (pdf * (1.f - terminateProbability)))), temp.r, temp.g, temp.b);
+//   //printf("%f %f %f\n", newSpectrum.r, newSpectrum.g, newSpectrum.b);
 
-  L_out += newSpectrum;
-//#endif
+//   L_out += newSpectrum;
+// //#endif
 
   return L_out;
 
@@ -631,13 +631,9 @@ void PathTracer::worker_thread() {
 
   int batchNum = (sampleBuffer.w + BATCHSIZE - 1) / BATCHSIZE;
 
-
+  // make cuda here
   for (size_t y = 0; y < sampleBuffer.h; y ++) {
  //   fprintf(stdout, "Threads:%d!\n", omp_get_num_threads()); 
-
-   #ifdef OMP
-    #pragma omp parallel for schedule(dynamic) 
-  #endif
     for (size_t x = 0; x < sampleBuffer.w; x ++) {
               Spectrum s = raytrace_pixel(x, y);
               

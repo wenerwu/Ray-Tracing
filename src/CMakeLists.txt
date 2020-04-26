@@ -49,7 +49,24 @@ set(APPLICATION_SOURCE
     # Application
     application.cpp
     main.cpp
+
+    # Cuda
+    cuda/parallelHelper.cu
+    cuda/cudaPathtracer.cu
 )
+
+
+SET(CUDA_PROPAGATE_HOST_FLAGS OFF)
+
+
+#CUDA
+set(
+  CUDA_NVCC_FLAGS
+  ${CUDA_NVCC_FLAGS};
+  -O3 -gencode arch=compute_61,code=sm_61
+  --std=c++11
+  )
+
 
 #-------------------------------------------------------------------------------
 # Set include directories
@@ -71,18 +88,6 @@ link_directories(
   ${FREETYPE_LIBRARY_DIRS}
 )
 
-#CUDA
-set(
-  CUDA_NVCC_FLAGS
-  ${CUDA_NVCC_FLAGS};
-  -O3 -gencode arch=compute_61,code=sm_61
-  --std=c++11
-  )
-
-cuda_add_library(cuda_lib
-  cuda/test.cu
-  )
-
 
 #-------------------------------------------------------------------------------
 # Add executable
@@ -96,7 +101,6 @@ target_link_libraries( scotty3d
     ${OPENGL_LIBRARIES}
     ${FREETYPE_LIBRARIES}
     ${CMAKE_THREADS_INIT}
-    cuda_lib ${CUDA_LIBRARIES}
 )
 
 #-------------------------------------------------------------------------------

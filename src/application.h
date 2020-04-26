@@ -30,6 +30,7 @@
 // PathTracer
 #include "static_scene/scene.h"
 #include "pathtracer.h"
+#include "cuda/cudaPathtracer.h"
 #include "image.h"
 
 // Animator
@@ -148,11 +149,13 @@ class Application : public Renderer {
   void to_pose_action();
   void cycle_edit_action();
   void set_up_pathtracer();
+  void set_up_cudapathtracer();
   void raytrace_video();
   void rasterize_video();
 
   DynamicScene::Scene* scene;
   PathTracer* pathtracer;
+  cudaPathTracer* cudapathtracer; 
 
   // View Frustrum Variables.
   // On resize, the aspect ratio is changed. On reset_camera, the position and
