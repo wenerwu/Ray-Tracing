@@ -15,9 +15,10 @@
 #include "../image.h"
 
 #include "../pathtracer.h"
+#include "../intersection.h"
 #include "../static_scene/scene.h"
 using CMU462::StaticScene::Scene;
-
+using CMU462::StaticScene::Intersection;
 #include "../static_scene/environment_light.h"
 using CMU462::StaticScene::EnvironmentLight;
 
@@ -136,16 +137,17 @@ class cudaPathTracer {
 //    */
 //   void visualize_accel() const;
 
-//   /**
-//    * Trace an ray in the scene.
-//    */
-//   Spectrum trace_ray(const Ray& ray);
+  /**
+   * Trace an ray in the scene.
+   */
+  Spectrum trace_ray(const Ray& ray);
 
-//   /**
-//    * Trace a camera ray given by the pixel coordinate.
-//    */
-//   Spectrum raytrace_pixel(size_t x, size_t y);
+  /**
+   * Trace a camera ray given by the pixel coordinate.
+   */
+  Spectrum raytrace_pixel(size_t x, size_t y);
 
+  bool intersectWithNode(const Ray &ray, Intersection *isect);  
 
   enum State {
     INIT,       ///< to be initialized

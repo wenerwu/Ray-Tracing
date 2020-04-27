@@ -131,7 +131,7 @@ class BVHAccel : public Aggregate {
    */
   void drawOutline(const Color& c) const {}
 
- private:
+public:
   BVHNode* root;  ///< root node of the BVH
   
   /* Shared Memory */

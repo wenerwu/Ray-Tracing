@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
     usage(argv[0]);
     return 1;
   }
-  testCudaPrintf();
+  //testCudaPrintf();
   string sceneFilePath = argv[optind];
   msg("Input scene file: " << sceneFilePath);
 

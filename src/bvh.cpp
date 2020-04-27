@@ -263,7 +263,7 @@ BBox BVHAccel::get_bbox() const { return root->bb; }
 bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 {
 
-	testCudaPrintf();
+//	testCudaPrintf();
 	BVHNode* node = root;
 	
 //	q.push(root);
@@ -334,10 +334,10 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 				M[pid] = 2 * (hitright && (rt0 < lt0)) - 1;
 
 				/* TODO: PARLLEL SUM OVER HERE */
-				#pragma omp atomic
+			//	#pragma omp atomic
 				sum += M[pid];
 
-				#pragma omp barrier
+			//	#pragma omp barrier
 				
 				if(sum < 0)
 				{
@@ -370,7 +370,7 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 				
 			else
 			{
-				#pragma omp barrier	//TODO??
+			//	#pragma omp barrier	//TODO??
 
 				if(s.empty())
 				{
@@ -379,10 +379,10 @@ bool BVHAccel::intersectWithNode(const Ray &ray, Intersection *isect)
 				}
 						
 				node = s.top();
-				#pragma omp barrier	//TODO??
+			//	#pragma omp barrier	//TODO??
 				if(pid == 0)
 				s.pop();
-				#pragma omp barrier	//TODO??
+			//	#pragma omp barrier	//TODO??
 			}
 			
 			

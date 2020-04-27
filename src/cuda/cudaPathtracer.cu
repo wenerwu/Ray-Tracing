@@ -131,37 +131,253 @@ void cudaPathTracer::update_screen() {
 //     frameBuffer.resize(0, 0);
 //     state = INIT;
 //   } 
+
+bool cudaPathTracer::intersectWithNode(const Ray &ray, Intersection *isect)
+{
+	BVHNode* node = pathtracer->bvh->root;
+	stack<BVHNode*> s;
+
+	bool res = false;
+	double lt0, lt1, rt0, rt1;
+
+	// TODO!!!
+	int threadCount = 10;
+	int pid = 0;
+	int M[threadCount];
+	memset(M, 0, threadCount * sizeof(int));
+
+	BVHNode* near;
+	BVHNode* far;
+	bool hit = false;
+	while(true)
+	{
+		// when it's leaf, intersect directly
+
+		if(node->isLeaf())
+		{	
+
+			for (size_t p = 0; p < node->range; ++p) {
+				if (pathtracer->bvh->primitives[node->start + p]->intersect(ray, isect))
+				{
+					hit = true;
+				}
+			}
+			if(s.empty())
+				break;
+			node = s.top();
+			s.pop();	
+		}
+		else
+		{
+			/* Parallel read ?*/
+			int hitleft = (bool)node->l->bb.intersect(ray, lt0, lt1);
+			int hitright = (bool)node->r->bb.intersect(ray, rt0, rt1);
+
+			/* Use parallel and barrier to init */
+			for(int i = 0; i <= 3; i++)
+				M[i] = 0;
+
+			// TODO: barrier here
+			M[2*hitleft + hitright] = 1;
+			// TODO: barrier here
+
+			/* Visit both children */
+			if(M[3] || (M[1] && M[2]))
+			{
+		//		printf("HERE!!\n");
+				/* Decide which to go in first */
+				M[pid] = 2 * (hitright && (rt0 < lt0)) - 1;
+
+				/* TODO: PARLLEL SUM OVER HERE */
+				if(M[pid] < 0)
+				{
+					near = node->l;
+					far = node->r;
+				}
+				else
+				{
+					near = node->r;
+					far = node->l;
+				}
+				s.push(far);
+				node = near;
+
+			}
+			else if(M[2])
+			{
+			//	printf("HERELEFT\n");
+				node = node->l;
+			}
+
+			else if(M[1])
+			{
+			//	printf("HERERIGHT\n");
+				node = node->r;
+			}
+
+			else
+			{
+				if(s.empty())
+					break;
+
+				node = s.top();
+				s.pop();
+			}
+
+
+		}
+
+	}
+
+	return hit;
+
+}
+
+
+Spectrum cudaPathTracer::trace_ray(const Ray &r) {
+    Intersection isect;
   
-void cudaPathTracer::start_raytracing() {
-    pathtracer->start_raytracing();
-//     if (state != READY) return;
+   // if (!pathtracer->bvh->intersect(r, &isect)) {
+    if (!intersectWithNode(r, &isect)) {
+      if(pathtracer->envLight)
+      {
+        Spectrum light_L = pathtracer->envLight->sample_dir(r);
+        return light_L;
+      }
+      else
+        return Spectrum(0, 0, 0);
+    }
   
-//     state = RENDERING;
-//     continueRaytracing = true;
-   
-//     sampleBuffer.clear();
-//     frameBuffer.clear();
-//     num_tiles_w = sampleBuffer.w / imageTileSize + 1;
-//     num_tiles_h = sampleBuffer.h / imageTileSize + 1;
-//     tile_samples.resize(num_tiles_w * num_tiles_h);
-//     memset(&tile_samples[0], 0, num_tiles_w * num_tiles_h * sizeof(int));
+    Spectrum L_out = isect.bsdf->get_emission();  // Le
   
-//     // populate the tile work queue
+    // TODO (PathTracer):
+    // Instead of initializing this value to a constant color, use the direct,
+    // indirect lighting components calculated in the code below. The starter
+    // code overwrites L_out by (.5,.5,.5) so that you can test your geometry
+    // queries before you implement path tracing.
+  
+    //L_out = Spectrum(5.f, 5.f, 5.f);
+    //DirectionalLight dl = DirectionalLight(5, 100);
     
   
-//     // for (size_t y = 0; y < sampleBuffer.h; y += imageTileSize) {
-//     //   for (size_t x = 0; x < sampleBuffer.w; x += imageTileSize) {
-//     //     //disable thread
-//     //   //  workQueue.put_work(WorkItem(x, y, imageTileSize, imageTileSize));
-//     //     raytrace_tile(x, y, imageTileSize, imageTileSize);
-//     //   }
-//     // }
+    Vector3D hit_p = r.o + r.d * isect.t;
+    Vector3D hit_n = isect.n;
   
-//     // launch threads
-//     fprintf(stdout, "[PathTracer] Rendering... ");
-//     fflush(stdout);
+    // make a coordinate system for a hit point
+    // with N aligned with the Z direction.
+    Matrix3x3 o2w;
+    make_coord_space(o2w, isect.n);
+    Matrix3x3 w2o = o2w.T();
+  
+    // w_out points towards the source of the ray (e.g.,
+    // toward the camera if this is a primary ray)
+    Vector3D w_out = w2o * (r.o - hit_p);
+    w_out.normalize();
+  
+  
+    if (!isect.bsdf->is_delta()) {
+      Vector3D dir_to_light;
+      float dist_to_light;
+      float pr;
+  
+      // ### Estimate direct lighting integral
+      
+      for (SceneLight* light : pathtracer->scene->lights) {
+  
+        // no need to take multiple samples from a point/directional source
+        int num_light_samples = light->is_delta_light() ? 1 : pathtracer->ns_area_light;
+      
+        // integrate light over the hemisphere about the normal
+        for (int i = 0; i < num_light_samples; i++) {
+  
+          // returns a vector 'dir_to_light' that is a direction from
+          // point hit_p to the point on the light source.  It also returns
+          // the distance from point x to this point on the light source.
+          // (pr is the probability of randomly selecting the random
+          // sample point on the light source -- more on this in part 2)
+          const Spectrum& light_L = light->sample_L(hit_p, &dir_to_light, &dist_to_light, &pr);
+  
+          // convert direction into coordinate space of the surface, where
+          // the surface normal is [0 0 1]
+          const Vector3D& w_in = w2o * dir_to_light;
+          if (w_in.z < 0) continue;
+  
+            // note that computing dot(n,w_in) is simple
+          // in surface coordinates since the normal is (0,0,1)
+          double cos_theta = w_in.z;
+            
+          // evaluate surface bsdf
+          const Spectrum& f = isect.bsdf->f(w_out, w_in);
+  
+          // TODO (PathTracer):
+          // (Task 4) Construct a shadow ray and compute whether the intersected surface is
+          // in shadow. Only accumulate light if not in shadow.
+  
+          Vector3D o = hit_p + EPS_D * dir_to_light;
+          float dist = dist_to_light - EPS_D;
+  
+          Ray shadow = Ray(o, dir_to_light, dist, 0);
+          shadow.min_t = EPS_D;
+  
+          if(!pathtracer->bvh->intersect(shadow))
+            L_out += 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
+        }
+      }
+    }
+  
+  
+    return L_out;
+  
+  }
+
+Spectrum cudaPathTracer::raytrace_pixel(size_t x, size_t y) {
+    // Sample the pixel with coordinate (x,y) and return the result spectrum.
+    // The sample rate is given by the number of camera rays per pixel.
+  
+    Spectrum res = Spectrum(0,0,0);
+    double px, py;
+
+    px = (x + 0.5) / pathtracer->sampleBuffer.w;
+    py = (y + 0.5) / pathtracer->sampleBuffer.h;
+    return trace_ray(pathtracer->camera->generate_ray(px, py));
+
+  }
+  
+void cudaPathTracer::start_raytracing() {
+ //   pathtracer->start_raytracing();
+
+    pathtracer->rayLog.clear();
+    pathtracer->workQueue.clear();
+  
+    pathtracer->state = pathtracer->RENDERING;
+    pathtracer->continueRaytracing = true;
+    pathtracer->workerDoneCount = 0;
+   
+    pathtracer->sampleBuffer.clear();
+    pathtracer->frameBuffer.clear();
+    pathtracer->num_tiles_w = pathtracer->sampleBuffer.w / pathtracer->imageTileSize + 1;
+    pathtracer->num_tiles_h = pathtracer->sampleBuffer.h / pathtracer->imageTileSize + 1;
+    pathtracer->tile_samples.resize(pathtracer->num_tiles_w * pathtracer->num_tiles_h);
+    memset(&pathtracer->tile_samples[0], 0, pathtracer->num_tiles_w * pathtracer->num_tiles_h * sizeof(int));
+  
+    // launch threads
+    fprintf(stdout, "[CudaPathTracer] Rendering... ");
+    fflush(stdout);
         
-// //    worker_thread(); 
+    Timer timer;
+    timer.start();
+  
+    // make cuda here
+    for (size_t y = 0; y < pathtracer->sampleBuffer.h; y ++) {
+      for (size_t x = 0; x < pathtracer->sampleBuffer.w; x ++) {
+            Spectrum s = raytrace_pixel(x, y);
+            pathtracer->sampleBuffer.update_pixel(s, x, y);     
+       }  
+    }
+    pathtracer->sampleBuffer.toColor(pathtracer->frameBuffer, 0, 0, pathtracer->sampleBuffer.w, pathtracer->sampleBuffer.h);
+    timer.stop();
+    fprintf(stdout, "Done! (%.4fs)\n", timer.duration());
+    pathtracer->state = pathtracer->DONE;
 
   }
 
@@ -184,10 +400,10 @@ void cudaPathTracer::start_raytracing() {
 
   bool cudaPathTracer::is_done() {
     pathtracer->update_screen();
-    return pathtracer->state == DONE;
+    return pathtracer->state == pathtracer->DONE;
 }
  
   bool cudaPathTracer::is_done_headless() {
-        return pathtracer->state == DONE;
+        return pathtracer->state == pathtracer->DONE;
 
   }

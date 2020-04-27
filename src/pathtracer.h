@@ -155,7 +155,8 @@ class PathTracer {
       return state == DONE;
   }
 
- private:
+public:  
+  //private:
   /**
    * Used in initialization.
    */
@@ -210,7 +211,7 @@ class PathTracer {
     DONE        ///< started and completed raytracing
   };
 
-public: 
+ 
   // Configurables //
 
   State state;     ///< current state
