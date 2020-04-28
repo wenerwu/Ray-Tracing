@@ -1,20 +1,20 @@
-#ifndef CMU462_CAMERA_H
-#define CMU462_CAMERA_H
+#ifndef CUDA_CAMERA_H
+#define CUDA_CAMERA_H
 
 #include <iostream>
 
-#include "collada/camera_info.h"
+#include "../collada/camera_info.h"
 #include "CMU462/matrix3x3.h"
 
 #include "math.h"
-#include "ray.h"
-
-namespace CMU462 {
+#include "../ray.h"
+#include "cudaMatrix3x3.h"
+#include "cudaVector3D.h"
 
 /**
  * Camera.
  */
-class Camera {
+class cudaCamera {
  public:
   /*
     Sets the field of view to match screen screenW/H.
@@ -29,7 +29,7 @@ class Camera {
   /*
     Phi and theta are in RADIANS.
   */
-  void place(const Vector3D& targetPos, const double phi, const double theta,
+  void place(const cudaVector3D& targetPos, const double phi, const double theta,
              const double r, const double minR, const double maxR);
 
   /*
@@ -60,9 +60,9 @@ class Camera {
   */
   void rotate_by(const double dPhi, const double dTheta);
 
-  Vector3D position() const { return pos; }
-  Vector3D view_point() const { return targetPos; }
-  Vector3D up_dir() const { return c2w[1]; }
+  cudaVector3D position() const { return pos; }
+  cudaVector3D view_point() const { return targetPos; }
+  cudaVector3D up_dir() const { return c2w[1]; }
   double v_fov() const { return vFov; }
   double aspect_ratio() const { return ar; }
   double near_clip() const { return nClip; }
@@ -94,7 +94,7 @@ public:
   double hFov, vFov, ar, nClip, fClip;
 
   // Current position and target point (the point the camera is looking at).
-  Vector3D pos, targetPos;
+  cudaVector3D pos, targetPos;
 
   // Orientation relative to target, and min & max distance from the target.
   double phi, theta, r, minR, maxR;
@@ -102,7 +102,7 @@ public:
   // camera-to-world rotation matrix (note: also need to translate a
   // camera-space point by 'pos' to perform a full camera-to-world
   // transform)
-  Matrix3x3 c2w;
+  cudaMatrix3x3 c2w; 
 
   // Info about screen to render to; it corresponds to the camera's full field
   // of view at some distance.
@@ -110,6 +110,5 @@ public:
   double screenDist;
 };
 
-}  // namespace CMU462
 
 #endif  // CMU462_CAMERA_H

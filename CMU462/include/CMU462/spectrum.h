@@ -12,7 +12,7 @@ namespace CMU462 {
  * wavelengths, but it gives us enough information as we can only sense
  * a particular wavelengths.
  */
-class Spectrum {
+ class Spectrum {
  public:
   float r;  ///< intensity of red spectrum
   float g;  ///< intensity of green spectrum

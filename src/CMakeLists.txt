@@ -51,8 +51,8 @@ set(APPLICATION_SOURCE
     main.cpp
 
     # Cuda
-    cuda/parallelHelper.cu
     cuda/cudaPathtracer.cu
+    cuda/parallelHelper.cu
 )
 
 
