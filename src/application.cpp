@@ -32,7 +32,6 @@ using Collada::SphereInfo;
 namespace CMU462 {
 
 Application::Application(AppConfig config) {
-  printf("test2"); 
   scene = nullptr;
 
   pathtracer =
@@ -1818,7 +1817,7 @@ void Application::set_up_cudapathtracer() {
   scene->triangulateSelection();
   
   // cudapathtracer->set_camera(&camera);
-  // cudapathtracer->set_scene(scene->get_static_scene());
+   cudapathtracer->set_scene(scene->get_static_scene());
   // cudapathtracer->set_frame_size(screenW, screenH);
 }
 

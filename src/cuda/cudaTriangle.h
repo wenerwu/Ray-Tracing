@@ -1,8 +1,9 @@
 #ifndef CUDA_TRIANGLE_H
 #define CUDA_TRIANGLE_H
 
-#include "../object.h"
-#include "cudaPrimitive.h"
+#include "../static_scene/object.h"
+#include "cudabsdf.h"
+
 
 namespace CMU462 {
 namespace StaticScene {
@@ -60,17 +61,17 @@ __device__  bool intersect(const Ray& r) const;
    * In the case of a triangle, the surface material BSDF is stored in
    * the mesh it belongs to.
    */
-  BSDF* get_bsdf() const { return mesh->get_bsdf(); }
-
+ // cudaBSDF* get_bsdf() const { return mesh->get_bsdf(); }
+    
   /**
    * Draw with OpenGL (for visualizer)
    */
-  void draw(const Color& c) const;
+ // void draw(const Color& c) const;
 
   /**
    * Draw outline with OpenGL (for visualizer)
    */
-  void drawOutline(const Color& c) const;
+ // void drawOutline(const Color& c) const;
 
  private:
   const Mesh* mesh;  ///< pointer to the mesh the triangle is a part of
