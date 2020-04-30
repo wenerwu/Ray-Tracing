@@ -28,10 +28,10 @@ using std::min;
 using std::max;
 
 #define BLOCKSIZE 256
-cudaPrimitive* primitives;
-__device__ double sensorHeight;
-__device__ double sensorWidth;
-
+ cudaPrimitive* primitives;
+double* sensorHeight; 
+double* sensorWidth;
+ 
 PathTracer* pathtracer;
 cudaSpectrum* spectrum_buffer;
 cudaPrimitive* cudaPrimitives;
@@ -40,20 +40,10 @@ size_t w;
 size_t h;
 cudaMatrix3x3 c2w;
 
-
 cudaPathTracer::cudaPathTracer(PathTracer* _pathTracer) {
     pathtracer = _pathTracer;
     
-    
-    int num = pathtracer->num_tiles_w * pathtracer->num_tiles_h;
-  //  spectrum_buffer = (Spectrum*)malloc(sizeof(Spectrum) * num);
-  
-    cudaMalloc(&spectrum_buffer, sizeof(cudaSpectrum) * num);
-    cudaMalloc(&camera, sizeof(cudaCamera));
-    
-    cudaMemcpy(camera, pathtracer->camera, sizeof(cudaCamera), cudaMemcpyHostToDevice);
 
- 
 }
 
 cudaPathTracer::~cudaPathTracer() {
@@ -64,22 +54,72 @@ cudaPathTracer::~cudaPathTracer() {
     // delete hemisphereSampler;
 }
 
+void init_cudaPathTracer()
+{
+  cudaError_t err;
+  // int prim_num = pathtracer->bvh->primitives.size(); 
+
+  // cudaMalloc(&primitives, sizeof(cudaPrimitive) * prim_num);
+   
+  // cudaMemcpyToSymbol(primitives, &pathtracer->bvh->primitives,  sizeof(cudaPrimitive) * prim_num);
+  
+  // err = cudaPeekAtLastError();
+  // if (err != cudaSuccess)
+  // {
+  //     fprintf(stderr, "Failed to Init primitive (error code %s)!\n", cudaGetErrorString(err));
+  //     exit(EXIT_FAILURE);
+  // }
 
 
-void cudaPathTracer::set_scene(Scene *scene) {
   double sh = 2 * tan(radians(pathtracer->camera->vFov) / 2) * 1;	// distance is always 1
   double sw = sh * pathtracer->camera->ar;
+  double test = 2.f;
 
-  int prim_num = pathtracer->bvh->primitives.size(); 
-  if(prim_num < 1 || prim_num >99999)
-    prim_num = 100;
-  cudaMalloc(&primitives, sizeof(cudaPrimitive) * prim_num);
+  cudaMalloc((void**)&sensorHeight, sizeof(double));
+  cudaMalloc((void**)&sensorWidth, sizeof(double));
+  cudaMemcpy(sensorHeight, &sh, sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(sensorWidth, &sw, sizeof(double), cudaMemcpyHostToDevice);
+  // cudaMemcpyToSymbol(sensorHeight, &test, sizeof(double));
+  // cudaMemcpyToSymbol(sensorWidth, &sw, sizeof(double));
+  
+   err = cudaPeekAtLastError();
 
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to Init sensor Height, Width (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
 
-  cudaMemcpyToSymbol((void**)&primitives, (void**)&pathtracer->bvh->primitives,  sizeof(cudaPrimitive) * prim_num);
+      
+  int num = pathtracer->frameBuffer.w * pathtracer->frameBuffer.h;
+  //  spectrum_buffer = (Spectrum*)malloc(sizeof(Spectrum) * num);
+  printf("BUFFER: %d\n", num);
 
-  cudaMemcpyToSymbol(&sensorHeight, &sh,  sizeof(double));
-  cudaMemcpyToSymbol(&sensorWidth, &sw,  sizeof(double));
+    cudaMalloc(&spectrum_buffer, sizeof(Spectrum) * num);
+    err = cudaPeekAtLastError();
+
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to Init spectrum_buffer (error code %s)!\n", cudaGetErrorString(err));
+    //    exit(EXIT_FAILURE);
+    }
+
+    cudaMalloc(&camera, sizeof(cudaCamera));
+    cudaMemcpy(camera, pathtracer->camera, sizeof(cudaCamera), cudaMemcpyHostToDevice);
+
+    err = cudaPeekAtLastError();
+
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to Init camera (error code %s)!\n", cudaGetErrorString(err));
+    //    exit(EXIT_FAILURE);
+    }
+}
+
+void cudaPathTracer::set_scene(Scene *scene) {
+
+  init_cudaPathTracer(); 
+
 
 
  // cudaMalloc(&cudaPrimitives, sizeof(cudaPrimitive) * prim_num);
@@ -124,7 +164,7 @@ void cudaPathTracer::set_camera(Camera *camera) {
 }
 
 void cudaPathTracer::set_frame_size(size_t width, size_t height) {
-    pathtracer->set_frame_size(width, height); 
+    //pathtracer->set_frame_size(width, height); 
     // if (state != INIT && state != READY) {
     // stop();
     // }
@@ -373,7 +413,7 @@ __device__ cudaSpectrum trace_ray(PathTracer* pathtracer, const cudaRay &r, cuda
   
   }
 
-  __device__ cudaRay generate_ray_cuda(cudaCamera* camera, double x, double y) {
+  __device__ cudaRay generate_ray_cuda(cudaCamera* camera, double x, double y, double* sensorHeight, double* sensorWidth) {
     // TODO (PathTracer):
     // compute position of the input sensor sample coordinate on the
     // canonical sensor plane one unit away from the pinhole.
@@ -381,34 +421,40 @@ __device__ cudaSpectrum trace_ray(PathTracer* pathtracer, const cudaRay &r, cuda
     y -= 0.5;
   //	printf("screen:%f %f %f\n", vFov, hFov, ar);
 
-    cudaVector3D vec = cudaVector3D(x * sensorWidth, y * sensorHeight, -1);
+    cudaVector3D vec = cudaVector3D(x * (*sensorWidth), y * (*sensorHeight), -1);
     return cudaRay(camera->pos, camera->c2w * vec.unit());
   }
 
-  __global__ void raytrace_pixel(PathTracer* pathtracer, cudaCamera* camera, cudaSpectrum* spectrum_buffer, cudaPrimitive* primitives) {
+  __global__ void raytrace_pixel(size_t w, size_t h, cudaCamera* camera, cudaSpectrum* spectrum_buffer, double* sensorHeight, double* sensorWidth) {
     // Sample the pixel with coordinate (x,y) and return the result spectrum.
     // The sample rate is given by the number of camera rays per pixel.
-    size_t w = pathtracer->sampleBuffer.w;
-    size_t h = pathtracer->sampleBuffer.h;
-
-    size_t index = blockIdx.x * blockDim.x + threadIdx.x;
-    size_t x = index % w;
-    size_t y = index / w;
     
-    double px, py;
 
-    px = (x + 0.5) / w;
-    py = (y + 0.5) / h;
+ //   spectrum_buffer[0].r = 1;
+
+  //  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+    // size_t x = index % w;
+    // size_t y = index / w;
+
+    // return;
+    // double px, py;
+
+    // px = (x + 0.5) / w;
+    // py = (y + 0.5) / h;
     
-    if(x < w && y < h)
-      spectrum_buffer[y * w + x] = trace_ray(pathtracer, generate_ray_cuda(camera, px, py), primitives);
-    //   return trace_ray(pathtracer->camera->generate_ray(px, py));
+    // if(x < w && y < h)
+    //   spectrum_buffer[y * w + x] = trace_ray(pathtracer, generate_ray_cuda(camera, px, py), primitives);
+
+
+
+    //  //   return trace_ray(pathtracer->camera->generate_ray(px, py));
 
   }
   
 void cudaPathTracer::start_raytracing() {
- //   pathtracer->start_raytracing();
-
+    // pathtracer->start_raytracing();
+    // return;
+    cudaError_t err;
     pathtracer->rayLog.clear();
     pathtracer->workQueue.clear();
   
@@ -431,25 +477,58 @@ void cudaPathTracer::start_raytracing() {
     timer.start();
   
 
-    w = pathtracer->sampleBuffer.w;
-    h = pathtracer->sampleBuffer.h;
+    const size_t w = pathtracer->sampleBuffer.w;
+    const size_t h = pathtracer->sampleBuffer.h;
 
     // TODO: make cuda here
     size_t blockNum = (w * h + BLOCKSIZE - 1) / BLOCKSIZE;
     //printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!%d\n", w*h);
     Spectrum* buffer = (Spectrum*)malloc(w*h * sizeof(Spectrum));
 
-    memset(buffer, 0,w*h * sizeof(Spectrum));
+    for(int i = 0; i < w*h; i++)
+    {
+      buffer[i].r = 0.5;
+      buffer[i].g = 0.5;
+      buffer[i].b = 0.5;
+    }
+ //   memset(buffer, 0,w*h * sizeof(Spectrum));
+ err = cudaPeekAtLastError();
 
-    // TODO : D E B U G !!!!!!
-    // raytrace_pixel<<<blockNum, BLOCKSIZE>>>(pathtracer, camera, spectrum_buffer, primitives); 
-    // cudaDeviceSynchronize();
-    cudaMemcpy(&buffer, &spectrum_buffer, w * h * sizeof(cudaSpectrum), cudaMemcpyDeviceToHost);
+ if (err != cudaSuccess)
+ {
+     fprintf(stderr, "Failed to UNKNOWN (error code %s)!\n", cudaGetErrorString(err));
+     exit(EXIT_FAILURE);
+ }
 
+    // TODO: D E B U G !!!!!!
+  //  printf("BLOCK INFO: %d %d\n", blockNum, BLOCKSIZE);
+    raytrace_pixel<<<blockNum, BLOCKSIZE>>>( w, h,camera, spectrum_buffer, sensorHeight, sensorWidth ); 
+    cudaDeviceSynchronize(); 
+
+
+    // err = cudaPeekAtLastError();
+
+    // if (err != cudaSuccess)
+    // {
+    //     fprintf(stderr, "Failed to launch Raytrace kernel (error code %s)!\n", cudaGetErrorString(err));
+    //     exit(EXIT_FAILURE);
+    // }
+
+ //   cudaMemcpy(&buffer, &spectrum_buffer, w * h * sizeof(cudaSpectrum), cudaMemcpyDeviceToHost);
+
+    // err = cudaPeekAtLastError();
+
+    // if (err != cudaSuccess)
+    // {
+    //     fprintf(stderr, "Failed to launch memcpy (error code %s)!\n", cudaGetErrorString(err));
+    //     exit(EXIT_FAILURE);
+    // }
 
     for (size_t y = 0; y < h; y ++) {
       for (size_t x = 0; x < w; x ++) {
          //   spectrum_buffer[y*w+x] = raytrace_pixel(x, y);
+        //  if(buffer[y*w+x].r != 0.5)
+        //  printf("%f %f %f\n",buffer[y*w+x].r, buffer[y*w+x].g, buffer[y*w+x].b );
              pathtracer->sampleBuffer.update_pixel(buffer[y*w+x], x, y);  
             // Spectrum s = raytrace_pixel(x, y);
             // pathtracer->sampleBuffer.update_pixel(s, x, y);     

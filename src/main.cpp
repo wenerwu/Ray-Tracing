@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
   }
 
   const bool headless = config.pathtracer_result_path != "";
-  msg("test");
+
   // create application
   Application app(config);
 
