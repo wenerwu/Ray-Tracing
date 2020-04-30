@@ -1,0 +1,33 @@
+<Skeleton>
+    <Joint>
+        <Axis x="0" y="0" z="0"/>
+        <RenderScale val="9.2928712046683124"/>
+        <CapsuleRadius val="0.46464356023341563"/>
+        <Positions>
+            <Knot Time="9" x="0" y="0" z="0"/>
+            <Knot Time="31" x="0" y="0" z="0"/>
+            <Knot Time="76" x="0" y="0" z="0"/>
+            <Knot Time="105" x="0" y="0" z="0"/>
+            <Knot Time="121" x="0" y="0" z="0"/>
+            <Knot Time="155" x="0" y="0" z="0"/>
+        </Positions>
+        <Rotations>
+            <Knot Time="9" x="0" y="0" z="0"/>
+            <Knot Time="31" x="0" y="0" z="0"/>
+            <Knot Time="76" x="0" y="0" z="0"/>
+            <Knot Time="105" x="0" y="0" z="0"/>
+            <Knot Time="121" x="0" y="0" z="0"/>
+            <Knot Time="155" x="0" y="0" z="0"/>
+        </Rotations>
+        <Scales>
+            <Knot Time="0" x="1" y="1" z="1"/>
+            <Knot Time="9" x="1" y="1" z="1"/>
+            <Knot Time="31" x="1" y="1" z="1"/>
+            <Knot Time="76" x="1" y="1" z="1"/>
+            <Knot Time="105" x="1" y="1" z="1"/>
+            <Knot Time="121" x="1" y="1" z="1"/>
+            <Knot Time="155" x="1" y="1" z="1"/>
+        </Scales>
+        <Children/>
+    </Joint>
+</Skeleton>

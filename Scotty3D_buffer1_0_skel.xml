@@ -1,0 +1,118 @@
+<Skeleton>
+    <Joint>
+        <Axis x="0" y="0" z="0"/>
+        <RenderScale val="2.2309993413811013"/>
+        <CapsuleRadius val="0.11154996706905507"/>
+        <Positions/>
+        <Rotations/>
+        <Scales>
+            <Knot Time="0" x="1" y="1" z="1"/>
+        </Scales>
+        <Children>
+            <Joint>
+                <Axis x="-0.21327182004178957" y="-0.44168101672877857" z="0.0086381678415170526"/>
+                <RenderScale val="2.2309993413811013"/>
+                <CapsuleRadius val="0.11154996706905507"/>
+                <Positions/>
+                <Rotations/>
+                <Scales>
+                    <Knot Time="0" x="1" y="1" z="1"/>
+                </Scales>
+                <Children>
+                    <Joint>
+                        <Axis x="-0.0070621253276444973" y="-0.27422175062020848" z="0.06368528394335371"/>
+                        <RenderScale val="2.2309993413811013"/>
+                        <CapsuleRadius val="0.11154996706905507"/>
+                        <Positions/>
+                        <Rotations/>
+                        <Scales>
+                            <Knot Time="0" x="1" y="1" z="1"/>
+                        </Scales>
+                        <Children/>
+                    </Joint>
+                </Children>
+            </Joint>
+            <Joint>
+                <Axis x="0.25607564407255001" y="-0.45787736760920139" z="0.044279272596750019"/>
+                <RenderScale val="2.2309993413811013"/>
+                <CapsuleRadius val="0.11154996706905507"/>
+                <Positions/>
+                <Rotations/>
+                <Scales>
+                    <Knot Time="0" x="1" y="1" z="1"/>
+                </Scales>
+                <Children>
+                    <Joint>
+                        <Axis x="-0.022440922856688639" y="-0.23217241615787065" z="0.037460767076583856"/>
+                        <RenderScale val="2.2309993413811013"/>
+                        <CapsuleRadius val="0.11154996706905507"/>
+                        <Positions/>
+                        <Rotations/>
+                        <Scales>
+                            <Knot Time="0" x="1" y="1" z="1"/>
+                        </Scales>
+                        <Children/>
+                    </Joint>
+                </Children>
+            </Joint>
+            <Joint>
+                <Axis x="-0.01821991594750294" y="-0.12429954494316953" z="-0.59635763958203847"/>
+                <RenderScale val="2.2309993413811013"/>
+                <CapsuleRadius val="0.11154996706905507"/>
+                <Positions/>
+                <Rotations/>
+                <Scales>
+                    <Knot Time="0" x="1" y="1" z="1"/>
+                </Scales>
+                <Children>
+                    <Joint>
+                        <Axis x="-0.14086480245594049" y="-0.36212970985762111" z="0.13018774094239771"/>
+                        <RenderScale val="2.2309993413811013"/>
+                        <CapsuleRadius val="0.11154996706905507"/>
+                        <Positions/>
+                        <Rotations/>
+                        <Scales>
+                            <Knot Time="0" x="1" y="1" z="1"/>
+                        </Scales>
+                        <Children>
+                            <Joint>
+                                <Axis x="-0.026250057741780047" y="-0.20028833492822412" z="-0.15031528480800649"/>
+                                <RenderScale val="2.2309993413811013"/>
+                                <CapsuleRadius val="0.11154996706905507"/>
+                                <Positions/>
+                                <Rotations/>
+                                <Scales>
+                                    <Knot Time="0" x="1" y="1" z="1"/>
+                                </Scales>
+                                <Children/>
+                            </Joint>
+                        </Children>
+                    </Joint>
+                    <Joint>
+                        <Axis x="0.24537762919590231" y="-0.33763596475861174" z="0.084462402290379268"/>
+                        <RenderScale val="2.2309993413811013"/>
+                        <CapsuleRadius val="0.11154996706905507"/>
+                        <Positions/>
+                        <Rotations/>
+                        <Scales>
+                            <Knot Time="0" x="1" y="1" z="1"/>
+                        </Scales>
+                        <Children>
+                            <Joint>
+                                <Axis x="-0.060984594633052447" y="-0.20749370670035677" z="-0.099130771797108608"/>
+                                <RenderScale val="2.2309993413811013"/>
+                                <CapsuleRadius val="0.11154996706905507"/>
+                                <Positions/>
+                                <Rotations/>
+                                <Scales>
+                                    <Knot Time="0" x="1" y="1" z="1"/>
+                                </Scales>
+                                <Children/>
+                            </Joint>
+                        </Children>
+                    </Joint>
+                </Children>
+            </Joint>
+        </Children>
+    </Joint>
+</Skeleton>
