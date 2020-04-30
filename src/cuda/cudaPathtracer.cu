@@ -1,4 +1,8 @@
 
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <driver_functions.h>
+  
 #include "CMU462/CMU462.h"
 #include "CMU462/vector3D.h"
 #include "CMU462/matrix3x3.h"
@@ -506,13 +510,13 @@ void cudaPathTracer::start_raytracing() {
     cudaDeviceSynchronize(); 
 
 
-    // err = cudaPeekAtLastError();
+    err = cudaPeekAtLastError();
 
-    // if (err != cudaSuccess)
-    // {
-    //     fprintf(stderr, "Failed to launch Raytrace kernel (error code %s)!\n", cudaGetErrorString(err));
-    //     exit(EXIT_FAILURE);
-    // }
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to launch Raytrace kernel (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
 
  //   cudaMemcpy(&buffer, &spectrum_buffer, w * h * sizeof(cudaSpectrum), cudaMemcpyDeviceToHost);
 

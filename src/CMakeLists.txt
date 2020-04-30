@@ -63,7 +63,7 @@ SET(CUDA_PROPAGATE_HOST_FLAGS OFF)
 set(
   CUDA_NVCC_FLAGS
   ${CUDA_NVCC_FLAGS};
-  -O3 -gencode arch=compute_61,code=sm_61
+  -O3 -gencode arch=compute_70,code=sm_70
   --std=c++11
   )
 
