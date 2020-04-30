@@ -84,7 +84,7 @@ void Mesh::linearBlendSkinning(bool useCapsuleRadius) {
       
       double dist = (point - closestPoint).norm();
 
-      if(useCapsuleRadius && dist > joint->capsuleRadius) 
+      if(useCapsuleRadius && dist > joint->capsuleRadius)  
         continue;
         
       LBSInfo info = LBSInfo();
@@ -98,7 +98,7 @@ void Mesh::linearBlendSkinning(bool useCapsuleRadius) {
 
 
     if(infos.size() == 0)
-      v->position = v->bindPosition;
+      v->position = v->bindPosition;  
     else
     {
       Vector3D pos = Vector3D(0,0,0);
