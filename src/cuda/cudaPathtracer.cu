@@ -32,7 +32,8 @@ using std::min;
 using std::max;
 
 #define BLOCKSIZE 256
-__constant__ cudaPrimitive* primitives;
+cudaTriangle* primitives;
+__constant__ int primitiveCount;
 __constant__ double sensorHeight; 
 __constant__ double sensorWidth; 
 __constant__ size_t width;
@@ -62,7 +63,16 @@ void loadPrimitives()
 {
   cudaError_t err;
   int prim_num = pathtracer->bvh->primitives.size(); 
-  printf("PRIMSIZE:%d\n",sizeof(cudaTriangle) * prim_num);
+  cudaMemcpyToSymbol(primitiveCount, &prim_num,  sizeof(int));
+  err = cudaPeekAtLastError();
+
+  if (err != cudaSuccess)
+  {
+      fprintf(stderr, "Failed to init primitive count (error code %s)!\n", cudaGetErrorString(err));
+      exit(EXIT_FAILURE);
+  }
+
+
   cudaMalloc(&primitives, sizeof(cudaTriangle) * prim_num);
   err = cudaPeekAtLastError();
 
@@ -74,13 +84,18 @@ void loadPrimitives()
 
   cudaTriangle* cpuTriangle = (cudaTriangle *)malloc(prim_num * sizeof(cudaTriangle));
   // TODO: NEED TO REALLY TRANSLATE IT
-  // for(int i = 0; i < prim_num; i++)
-  // {
-  //   cpuTriangle[i] = *pathtracer->bvh->primitives[i];
- 
-  // }
-
-  // cudaMemcpyToSymbol(primitives, cpuTriangle,  sizeof(cudaTriangle) * prim_num);
+  for(int i = 0; i < prim_num; i++)
+  {
+    Triangle* prim = (Triangle*)pathtracer->bvh->primitives[i];
+    cpuTriangle[i].mesh = prim->mesh;
+    cpuTriangle[i].v1 = prim->v1;
+    cpuTriangle[i].v2 = prim->v2;
+    cpuTriangle[i].v3 = prim->v3;
+    cpuTriangle[i].v = prim->v;
+  //  printf("%f \n",cpuTriangle[i].mesh->positions[cpuTriangle[i].v1].x);
+  }
+  cudaMemcpy(primitives, cpuTriangle, sizeof(cudaTriangle)  * prim_num, cudaMemcpyHostToDevice);
+//  cudaMemcpyToSymbol(primitives, cpuTriangle,  sizeof(cudaTriangle)  * prim_num);
   free(cpuTriangle);
 
   err = cudaPeekAtLastError();
@@ -197,20 +212,71 @@ void cudaPathTracer::update_screen() {
     //     break;
     // }
   }
-  
 
-__device__ bool cudaintersectPrimitive(cudaPrimitive* primitives, const cudaRay &ray, cudaIntersection *isect)
+
+__device__ bool cudaintersectPrimitive(cudaTriangle* primitive, const cudaRay &r, cudaIntersection *isect)
 {
-  return false;
+  
+  size_t v1 = primitive->v1;
+  size_t v2 = primitive->v2;
+  size_t v3 = primitive->v3;
+
+  //TODO MAKE VECTOR DIRECTLY IN CUDA TRIANGLE
+
+    Vector3D p0 = primitive->mesh->positions[v1];
+    Vector3D p1 = primitive->mesh->positions[v2];
+    Vector3D p2 = primitive->mesh->positions[v3];
+  
+  
+    cudaVector3D co = r.o;
+    cudaVector3D cd = r.d;
+  
+    Vector3D o = Vector3D(co.x, co.y, co.z);
+    Vector3D d = Vector3D(cd.x, cd.y, cd.z);
+  
+    Vector3D e1 = p1 - p0;
+    Vector3D e2 = p2 - p0;
+    Vector3D s = o - p0;
+  
+    double denominator = dot(cross(e1, d), e2);
+    if (denominator == 0)
+      return false;
+  
+    Vector3D numerator = Vector3D(-dot(cross(s, e2), d), dot(cross(e1, d), s), -dot(cross(s, e2), e1));
+    Vector3D ans = numerator / denominator;
+  //	return true;
+    // in triangle
+    if (ans.x < 0 || ans.x > 1 || ans.y < 0 || ans.y > 1 ||
+      1 - ans.x - ans.y < 0 || 1 - ans.x - ans.y > 1 ||
+      ans.z < r.min_t || ans.z > r.max_t)
+      return false;
+  
+    double u = ans.x;
+    double v = ans.y;
+    double t = ans.z;
+   
+  //  cudaVector3D tt = cudaVector3D(t.x, t.y, t.z); 
+    r.max_t = t;
+  
+    isect->t = t;
+    Vector3D tmp = (1 - u - v) * primitive->mesh->normals[v1] + u * primitive->mesh->normals[v2] + v * primitive->mesh->normals[v3];
+     isect->n = cudaVector3D(tmp.x, tmp.y, tmp.z);
+     if (dot(isect->n, r.d) > 0)
+      isect->n *= -1;
+    isect->primitive = primitive;
+  //  isect->bsdf = primitive->mesh->get_bsdf();		
+     
+  return true; 
 }
 
-__device__ bool cudaintersectWithNode(PathTracer* pathtracer, const cudaRay &ray, cudaIntersection *isect, cudaPrimitive* primitives)
+__device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isect, cudaTriangle* primitives)
 {
-	BVHNode* node = pathtracer->bvh->root;
+//	BVHNode* node = pathtracer->bvh->root;
   bool hit = false;
 
-  for (size_t p = 0; p < node->range; ++p) {
-    if (cudaintersectPrimitive(primitives, ray, isect))
+//  for (size_t p = 0; p < node->range; ++p) {
+  for (size_t p = 0; p < primitiveCount; ++p) {
+    if (cudaintersectPrimitive(&primitives[p], ray, isect))
 //	if (pathtracer->bvh->primitives[node->start + p]->intersect(ray, isect))
   {
     hit = true;
@@ -317,11 +383,11 @@ __device__ bool cudaintersectWithNode(PathTracer* pathtracer, const cudaRay &ray
 
 
 
-__device__ cudaSpectrum trace_ray(PathTracer* pathtracer, const cudaRay &r, cudaPrimitive* primitives) {
+__device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives) {
     cudaIntersection isect;  
    
    // if (!pathtracer->bvh->intersect(r, &isect)) {
-    if (!cudaintersectWithNode(pathtracer, r, &isect, primitives)) {
+    if (!cudaintersectWithNode(r, &isect, primitives)) {
       // if(pathtracer->envLight)
       // {
       //   Spectrum light_L = pathtracer->envLight->sample_dir(r);
@@ -426,7 +492,7 @@ __device__ cudaSpectrum trace_ray(PathTracer* pathtracer, const cudaRay &r, cuda
     return cudaRay(camera->pos, camera->c2w * vec.unit());
   }
 
-  __global__ void raytrace_pixel(cudaCamera* camera, cudaSpectrum* spectrum_buffer, cudaPrimitive* primitives) {
+  __global__ void raytrace_pixel(cudaCamera* camera, cudaSpectrum* spectrum_buffer, cudaTriangle* primitives) {
     // Sample the pixel with coordinate (x,y) and return the result spectrum.
     // The sample rate is given by the number of camera rays per pixel.
 
@@ -441,14 +507,14 @@ __device__ cudaSpectrum trace_ray(PathTracer* pathtracer, const cudaRay &r, cuda
     
     double color = (double)index / (width*height); 
 //     printf("color%g\n",color);
-    if(x < width && y < height)
-    {
-      spectrum_buffer[y*width+x].r = color;
-      spectrum_buffer[y*width+x].g = color;
-      spectrum_buffer[y*width+x].b = color;
-    }
-//    if(x < width && y < height)
-    //spectrum_buffer[y * width + x] = trace_ray(pathtracer, generate_ray_cuda(camera, px, py), primitives);
+    // if(x < width && y < height)
+    // {
+    //   spectrum_buffer[y*width+x].r = color;
+    //   spectrum_buffer[y*width+x].g = color;
+    //   spectrum_buffer[y*width+x].b = color;
+    // }
+   if(x < width && y < height)
+      spectrum_buffer[y * width + x] = trace_ray(generate_ray_cuda(camera, px, py), primitives);
     //   return trace_ray(pathtracer->camera->generate_ray(px, py));
 
   }

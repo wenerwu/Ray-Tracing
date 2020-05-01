@@ -3,10 +3,11 @@
 
 #include "../static_scene/object.h"
 #include "cudabsdf.h"
+#include "cudaRay.h"
+#include "cudaintersection.h"
 
-
-namespace CMU462 {
-namespace StaticScene {
+using namespace CMU462;
+using namespace StaticScene;
 
 /**
  * A single triangle from a mesh.
@@ -54,7 +55,7 @@ __device__  bool intersect(const Ray& r) const;
    * \return true if the given ray intersects with the triangle,
              false otherwise
    */
- __device__ bool intersect(const Ray& r, Intersection* i);
+ __device__ bool intersect(const cudaRay& r, cudaIntersection* i);
   
   /**
    * Get BSDF.
@@ -73,7 +74,7 @@ __device__  bool intersect(const Ray& r) const;
    */
  // void drawOutline(const Color& c) const;
 
- private:
+ public:
   const Mesh* mesh;  ///< pointer to the mesh the triangle is a part of
 
   size_t v1;  ///< index into the mesh attribute arrays
@@ -84,7 +85,5 @@ __device__  bool intersect(const Ray& r) const;
 
 };  // class Triangle
 
-}  // namespace StaticScene
-}  // namespace CMU462
 
 #endif  // CMU462_STATICSCENE_TRIANGLE_H

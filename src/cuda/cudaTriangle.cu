@@ -3,6 +3,10 @@
 #include "CMU462/CMU462.h"
 #include "GL/glew.h"
 
+using namespace CMU462;
+using namespace StaticScene;
+
+
 cudaTriangle::cudaTriangle(const Mesh* mesh, vector<size_t>& v) : mesh(mesh), v(v) {}
 cudaTriangle::cudaTriangle(const Mesh* mesh, size_t v1, size_t v2, size_t v3)
     : mesh(mesh), v1(v1), v2(v2), v3(v3) {}
@@ -57,7 +61,7 @@ __device__ bool cudaTriangle::intersect(const Ray& r) const {
   return true;
 }
 
-__device__ bool cudaTriangle::intersect(const Ray& r, Intersection* isect) {
+__device__ bool cudaTriangle::intersect(const cudaRay& r, cudaIntersection* isect) {
 //	printf("HERE!");
   // TODO (PathTracer):
   // implement ray-triangle intersection. When an intersection takes
@@ -66,8 +70,12 @@ __device__ bool cudaTriangle::intersect(const Ray& r, Intersection* isect) {
 	Vector3D p1 = mesh->positions[v2];
 	Vector3D p2 = mesh->positions[v3];
 
-	Vector3D o = r.o;
-	Vector3D d = r.d;
+
+	cudaVector3D co = r.o;
+	cudaVector3D cd = r.d;
+
+	Vector3D o = Vector3D(co.x, co.y, co.z);
+	Vector3D d = Vector3D(cd.x, cd.y, cd.z);
 
 	Vector3D e1 = p1 - p0;
 	Vector3D e2 = p2 - p0;

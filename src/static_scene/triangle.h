@@ -72,7 +72,7 @@ class Triangle : public Primitive {
    */
   void drawOutline(const Color& c) const;
 
- private:
+ public:
   const Mesh* mesh;  ///< pointer to the mesh the triangle is a part of
 
   size_t v1;  ///< index into the mesh attribute arrays
