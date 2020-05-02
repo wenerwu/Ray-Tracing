@@ -41,7 +41,7 @@ using namespace CMU462;
 //   return clamp(w.y / sinTheta, -1.0, 1.0);
 // }
 
-void make_coord_space(Matrix3x3& o2w, const Vector3D& n);
+void make_coord_space(cudaMatrix3x3& o2w, const cudaVector3D& n);
 
 /**
  * Interface for BSDFs.

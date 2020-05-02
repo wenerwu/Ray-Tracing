@@ -92,6 +92,16 @@ void loadPrimitives()
     cpuTriangle[i].v2 = prim->v2;
     cpuTriangle[i].v3 = prim->v3;
     cpuTriangle[i].v = prim->v;
+
+    
+    cpuTriangle[i].p0 = prim->mesh->positions[prim->v1]; 
+    cpuTriangle[i].p1 = prim->mesh->positions[prim->v2];
+    cpuTriangle[i].p2 = prim->mesh->positions[prim->v3];
+
+    cpuTriangle[i].n0 = prim->mesh->normals[prim->v1]; 
+    cpuTriangle[i].n1 = prim->mesh->normals[prim->v2]; 
+    cpuTriangle[i].n2 = prim->mesh->normals[prim->v3]; 
+
   //  printf("%f \n",cpuTriangle[i].mesh->positions[cpuTriangle[i].v1].x);
   }
   cudaMemcpy(primitives, cpuTriangle, sizeof(cudaTriangle)  * prim_num, cudaMemcpyHostToDevice);
@@ -217,33 +227,33 @@ void cudaPathTracer::update_screen() {
 __device__ bool cudaintersectPrimitive(cudaTriangle* primitive, const cudaRay &r, cudaIntersection *isect)
 {
   
-  size_t v1 = primitive->v1;
-  size_t v2 = primitive->v2;
-  size_t v3 = primitive->v3;
+  // size_t v1 = primitive->v1;
+  // size_t v2 = primitive->v2;
+  // size_t v3 = primitive->v3;
 
   //TODO MAKE VECTOR DIRECTLY IN CUDA TRIANGLE
 
-    Vector3D p0 = primitive->mesh->positions[v1];
-    Vector3D p1 = primitive->mesh->positions[v2];
-    Vector3D p2 = primitive->mesh->positions[v3];
+    cudaVector3D p0 = primitive->p0; 
+    cudaVector3D p1 = primitive->p1;
+    cudaVector3D p2 = primitive->p2;
   
   
-    cudaVector3D co = r.o;
-    cudaVector3D cd = r.d;
+    cudaVector3D o = r.o;
+    cudaVector3D d = r.d;
   
-    Vector3D o = Vector3D(co.x, co.y, co.z);
-    Vector3D d = Vector3D(cd.x, cd.y, cd.z);
+    // Vector3D o = Vector3D(co.x, co.y, co.z);
+    // Vector3D d = Vector3D(cd.x, cd.y, cd.z);
   
-    Vector3D e1 = p1 - p0;
-    Vector3D e2 = p2 - p0;
-    Vector3D s = o - p0;
+    cudaVector3D e1 = p1 - p0;
+    cudaVector3D e2 = p2 - p0;
+    cudaVector3D s = o - p0;
   
     double denominator = dot(cross(e1, d), e2);
     if (denominator == 0)
       return false;
   
-    Vector3D numerator = Vector3D(-dot(cross(s, e2), d), dot(cross(e1, d), s), -dot(cross(s, e2), e1));
-    Vector3D ans = numerator / denominator;
+    cudaVector3D numerator = cudaVector3D(-dot(cross(s, e2), d), dot(cross(e1, d), s), -dot(cross(s, e2), e1));
+    cudaVector3D ans = numerator / denominator;
   //	return true;
     // in triangle
     if (ans.x < 0 || ans.x > 1 || ans.y < 0 || ans.y > 1 ||
@@ -259,7 +269,12 @@ __device__ bool cudaintersectPrimitive(cudaTriangle* primitive, const cudaRay &r
     r.max_t = t;
   
     isect->t = t;
-    Vector3D tmp = (1 - u - v) * primitive->mesh->normals[v1] + u * primitive->mesh->normals[v2] + v * primitive->mesh->normals[v3];
+
+    cudaVector3D n0 = primitive->n0;
+    cudaVector3D n1 = primitive->n1;
+    cudaVector3D n2 = primitive->n2;
+ 
+    cudaVector3D tmp = (1 - u - v) * n0 + u * n1 + v * n2;
      isect->n = cudaVector3D(tmp.x, tmp.y, tmp.z);
      if (dot(isect->n, r.d) > 0)
       isect->n *= -1;
@@ -398,7 +413,7 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives) {
     }
     return cudaSpectrum(1, 1, 1);
 
-    // Spectrum L_out = isect.bsdf->get_emission();  // Le
+    //  Spectrum L_out = isect.bsdf->get_emission();  // Le
   
     // // TODO (PathTracer):
     // // Instead of initializing this value to a constant color, use the direct,
@@ -410,18 +425,18 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives) {
     // //DirectionalLight dl = DirectionalLight(5, 100);
     
   
-    // Vector3D hit_p = r.o + r.d * isect.t;
-    // Vector3D hit_n = isect.n;
+    // cudaVector3D hit_p = r.o + r.d * isect.t;
+    // cudaVector3D hit_n = isect.n;
   
     // // make a coordinate system for a hit point
     // // with N aligned with the Z direction.
-    // Matrix3x3 o2w;
+    // cudaMatrix3x3 o2w;
     // make_coord_space(o2w, isect.n);
-    // Matrix3x3 w2o = o2w.T();
+    // cudaMatrix3x3 w2o = o2w.T();
   
     // // w_out points towards the source of the ray (e.g.,
     // // toward the camera if this is a primary ray)
-    // Vector3D w_out = w2o * (r.o - hit_p);
+    // cudaVector3D w_out = w2o * (r.o - hit_p);
     // w_out.normalize();
   
   

@@ -11,9 +11,9 @@ using std::swap;
 
 
 
-void make_coord_space(Matrix3x3& o2w, const Vector3D& n) {
-  Vector3D z = Vector3D(n.x, n.y, n.z);
-  Vector3D h = z;
+void make_coord_space(cudaMatrix3x3& o2w, const cudaVector3D& n) {
+  cudaVector3D z = cudaVector3D(n.x, n.y, n.z);
+  cudaVector3D h = z;
   if (fabs(h.x) <= fabs(h.y) && fabs(h.x) <= fabs(h.z))
     h.x = 1.0;
   else if (fabs(h.y) <= fabs(h.x) && fabs(h.y) <= fabs(h.z))
@@ -22,9 +22,9 @@ void make_coord_space(Matrix3x3& o2w, const Vector3D& n) {
     h.z = 1.0;
 
   z.normalize();
-  Vector3D y = cross(h, z);
+  cudaVector3D y = cross(h, z);
   y.normalize();
-  Vector3D x = cross(z, y);
+  cudaVector3D x = cross(z, y);
   x.normalize();
 
   o2w[0] = x;

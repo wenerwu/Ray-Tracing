@@ -41,6 +41,12 @@ class cudaVector3D {
    */
   __device__ cudaVector3D( const cudaVector3D& v ) : x( v.x ), y( v.y ), z( v.z ) { }
 
+  /**
+   * Constructor.
+   * Initializes from existing vector
+   */
+  __device__ cudaVector3D( const Vector3D& v ) : x( v.x ), y( v.y ), z( v.z ) { }
+
   // returns reference to the specified component (0-based indexing: x, y, z)
   __device__ inline double& operator[] ( const int& index ) {
     return ( &x )[ index ];

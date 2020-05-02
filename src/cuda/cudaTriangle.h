@@ -81,6 +81,13 @@ __device__  bool intersect(const Ray& r) const;
   size_t v2;  ///< index into the mesh attribute arrays
   size_t v3;  ///< index into the mesh attribute arrays
 
+  cudaVector3D p0;
+  cudaVector3D p1;
+  cudaVector3D p2; 
+
+  cudaVector3D n0;
+  cudaVector3D n1;
+  cudaVector3D n2;
   vector<size_t> v;
 
 };  // class Triangle
