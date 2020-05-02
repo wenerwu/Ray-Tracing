@@ -1,11 +1,7 @@
 Implemented:
 
-Task 1 - Generating Camera Rays
-Task 2 - Intersecting Triangles and Spheres
-Task 3 - Implementing a Bounding Volume Hierarchy (BVH)
-Task 4 - Implementing Shadow Rays
-Task 5 - Adding Path Tracing
-Task 6 - Adding New Materials
-Task 7 - Infinite Environment Lighting
-Task 8 - Beautiful Image
-Task 9 - Documentation
+Task 1 - Spline Interpolation
+Task 2 - Forward and Inverse Kinematics
+Task 3 - Linear Blend Skinning
+Task 5 - Make a movie
+Task 6 - Documentation

@@ -56,7 +56,11 @@ void Mesh::linearBlendSkinning(bool useCapsuleRadius) {
     vector<LBSInfo> infos;
     for(auto it = skeleton->joints.begin(); it != skeleton->joints.end(); it++)
     {
+
       Joint *joint = *it;
+
+      if(joint->axis == 0)
+        continue;
       Vector3D bindPos = joint->getBindTransformation().inv() * v->bindPosition;
       Vector3D endPos = joint->getTransformation() * joint->getRotation() * bindPos;  // world coordination
 
