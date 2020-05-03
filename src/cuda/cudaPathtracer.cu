@@ -1,6 +1,9 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <driver_functions.h>
+#include <curand.h>
+#include <curand_kernel.h>
+#include <math.h>
 
 #include "CMU462/CMU462.h"
 #include "CMU462/vector3D.h"
@@ -24,6 +27,7 @@
 #include "cudaMatrix3x3.h"
 #include "cudaRay.h"
 #include "cudaLight.h"
+#include "cudaBVH.h"
 
 
 //using namespace std;
@@ -37,6 +41,7 @@ using std::max;
 
 #define BLOCKSIZE 256
 #define MAXLIGHT 16
+#define MAXSTACK 256
 
 
 __constant__ int primitiveCount;
@@ -54,6 +59,7 @@ cudaSpectrum* spectrum_buffer;
 cudaPrimitive* cudaPrimitives;
 cudaCamera* camera;  
 cudaMatrix3x3 c2w;
+cudaBVHNode* root;
 
 
 
@@ -105,13 +111,46 @@ cudaComplexLight translateLight(SceneLight* light)
     return res;
 }
 
+cudaBVHNode* loadBVHNode(BVHNode* node)
+{
+  if(!node)
+    return NULL;
+
+  cudaBVHNode cpuNode;
+  cpuNode.bb = node->bb;   // todo CUDABBOX
+  cpuNode.start = node->start;
+  cpuNode.range = node->range;
+
+  cpuNode.l = loadBVHNode(node->l);
+  cpuNode.r = loadBVHNode(node->r);
+
+  cudaBVHNode* newNode;
+  cudaMalloc(&newNode, sizeof(cudaBVHNode));
+  cudaMemcpy(newNode, &cpuNode, sizeof(cudaBVHNode), cudaMemcpyHostToDevice);
+  
+  return newNode;
+}
+
+void loadBVH()
+{
+  cudaError_t err;
+
+  root = loadBVHNode(pathtracer->bvh->root);
+ // cudaMemcpyToSymbol(root, tmpRoot,  sizeof(cudaBVHNode));
+
+  err = cudaPeekAtLastError();
+
+  if (err != cudaSuccess)
+  {
+      fprintf(stderr, "Failed to init load bvh (error code %s)!\n", cudaGetErrorString(err));
+      exit(EXIT_FAILURE);
+  }
+}
+
 void loadLights()
 {
   cudaError_t err;
-  // for (SceneLight* light : pathtracer->scene->lights) {
-  //   cudaComplexLight l = translateLight(light);
-  // }
-  //TODO: SAVE TO DEVICE
+
   int lcount = pathtracer->scene->lights.size();
   cudaMemcpyToSymbol(lightCount, &lcount,  sizeof(int));
 
@@ -247,6 +286,7 @@ void cudaPathTracer::set_scene(Scene *scene) {
 
     loadPrimitives();
     loadLights();
+    loadBVH();
 
     double infine =  std::numeric_limits<double>::infinity();
     cudaMemcpyToSymbol(INFD, &infine,  sizeof(double));
@@ -276,24 +316,30 @@ void cudaPathTracer::update_screen() {
 
   }
 
-__device__ cudaVector3D getSample3D()
+__device__ cudaVector3D getSample3D(curandState *state, size_t index)
 {
   //TODO!!!!!!!!!!!!!!!!TRY FIND SOME SUBSTITUTE
-  return cudaVector3D(0.5, 0.5, 0.5);
-  // double Xi1 = (double)(std::rand()) / RAND_MAX;
-  // double Xi2 = (double)(std::rand()) / RAND_MAX;
 
-  // double theta = acos(Xi1);
-  // double phi = 2.0 * PI * Xi2;
+  
+  curandState local_state = state[index];
+  double Xi1 = curand_uniform(&local_state);
+  double Xi2 = curand_uniform(&local_state);
+  state[index] = local_state;
+  double theta = acos(Xi1);
+  double phi = 2.0 * PI * Xi2;
 
-  // double xs = sinf(theta) * cosf(phi);
-  // double ys = sinf(theta) * sinf(phi);
-  // double zs = cosf(theta);
+  double xs = sinf(theta) * cosf(phi);
+  double ys = sinf(theta) * sinf(phi);
+  double zs = cosf(theta);
 
-  // return cudaVector3D(xs, ys, zs);
+  return cudaVector3D(xs, ys, zs);
+//  printf("index:%d %g %g\n", index, Xi1, Xi2);
+//  return cudaVector3D(0.5, 0.5, 0.5);
+
+
 }
 __device__ cudaSpectrum sampleLight(cudaComplexLight* light, const cudaVector3D& p, cudaVector3D* wi, float* distToLight,
-  float* pdf)
+  float* pdf, curandState *state, size_t index)
 {
   cudaSpectrum res;
   cudaVector3D dir;
@@ -307,7 +353,7 @@ __device__ cudaSpectrum sampleLight(cudaComplexLight* light, const cudaVector3D&
     break;
 
     case cudaLightType::INFINITEHEMISPHERE:
-      dir = getSample3D();
+      dir = getSample3D(state, index);
       *wi = light->sampleToWorld * dir;
       *distToLight = INFD;
       *pdf = 1.0 / (2.0 * M_PI);
@@ -373,7 +419,7 @@ __device__ bool cudaintersectPrimitive(cudaTriangle* primitive, const cudaRay &r
   return true; 
 }
 
-__device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isect, cudaTriangle* primitives)
+__device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isect, cudaTriangle* primitives, cudaBVHNode* root)
 {
 //	BVHNode* node = pathtracer->bvh->root;
   bool hit = false;
@@ -386,8 +432,11 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
     hit = true;
   }
 }
+//   cudaBVHNode* s[MAXSTACK];
+//   int stackSize = 0;
 
-// stack<BVHNode*> s;
+//   // TODO: FIRST NODE!
+//   //stack<BVHNode*> s;
 // 	double lt0, lt1, rt0, rt1;
 
 // 	// TODO!!!
@@ -395,9 +444,10 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
 // 	int pid = 0;
 // 	int M[10];
 
-// 	BVHNode* near;
-// 	BVHNode* far;
-	
+// 	cudaBVHNode* near;
+// 	cudaBVHNode* far;
+  
+//   cudaBVHNode* node = root;
 // 	while(true)
 // 	{
 // 		// when it's leaf, intersect directly
@@ -406,17 +456,17 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
 // 		{	
 
 // 			for (size_t p = 0; p < node->range; ++p) {
-//         	if (cudaintersectPrimitive(pathtracer->bvh->primitives[node->start + p], ray, isect))
+//         if (cudaintersectPrimitive(&primitives[node->start + p], ray, isect))
 // 			//	if (pathtracer->bvh->primitives[node->start + p]->intersect(ray, isect))
 // 				{
 // 					hit = true;
 // 				}
 // 			}
-// 			if(s.empty())
+// 			if(stackSize == 0)
 // 				break;
-// 			node = s.top();
-// 			s.pop();	
-// 		}
+// 			node = s[--stackSize];
+//     }
+    
 // 		else
 // 		{
 // 			/* Parallel read ?*/
@@ -448,8 +498,8 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
 // 				{
 // 					near = node->r;
 // 					far = node->l;
-// 				}
-// 				s.push(far);
+//         }
+//         s[stackSize++] = far;
 // 				node = near;
 
 // 			}
@@ -467,19 +517,18 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
 
 // 			else
 // 			{
-// 				if(s.empty())
+// 				if(stackSize == 0)
 // 					break;
 
-// 				node = s.top();
-// 				s.pop();
+//         node = s[--stackSize];
 // 			}
 
 
-// 		}
+// 		} // end else
 
 // 	}
 
-	return hit;
+	return hit; 
 
 }
 
@@ -487,11 +536,13 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
 
 
 
-__device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives, cudaComplexLight* lights) {
+__device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives, cudaComplexLight* lights, 
+  curandState *state, size_t index, cudaBVHNode* root) 
+  {
     cudaIntersection isect;  
    
    // if (!pathtracer->bvh->intersect(r, &isect)) {
-    if (!cudaintersectWithNode(r, &isect, primitives)) {
+    if (!cudaintersectWithNode(r, &isect, primitives, root)) {
 
         return cudaSpectrum(0, 0, 0);
     }
@@ -550,7 +601,7 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives, c
 
 
           //  const cudaSpectrum& light_L = light->sample_L(hit_p, &dir_to_light, &dist_to_light, &pr);
-          const cudaSpectrum& light_L = sampleLight(light, hit_p, &dir_to_light, &dist_to_light, &pr);
+          const cudaSpectrum& light_L = sampleLight(light, hit_p, &dir_to_light, &dist_to_light, &pr, state, index);
 
           // convert direction into coordinate space of the surface, where
           // the surface normal is [0 0 1]
@@ -575,7 +626,7 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives, c
           shadow.min_t = EPS_D;
   
          // if(!pathtracer->bvh->intersect(shadow))
-         if(!cudaintersectWithNode(shadow, &isect, primitives)) 
+         if(!cudaintersectWithNode(shadow, &isect, primitives, root)) 
            L_out += 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
         }
       }
@@ -598,20 +649,22 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives, c
     return cudaRay(camera->pos, camera->c2w * vec.unit());
   }
 
-  __global__ void raytrace_pixel(cudaCamera* camera, cudaSpectrum* spectrum_buffer, cudaTriangle* primitives, cudaComplexLight* lights) {
+  __global__ void raytrace_pixel(cudaCamera* camera, cudaSpectrum* spectrum_buffer, cudaTriangle* primitives, 
+    cudaComplexLight* lights, curandState *state, cudaBVHNode* root) 
+  {
     // Sample the pixel with coordinate (x,y) and return the result spectrum.
     // The sample rate is given by the number of camera rays per pixel.
 
     size_t index = blockIdx.x * blockDim.x + threadIdx.x;
     size_t x = index % width;
     size_t y = index / width;
-    
+//    printf("index:%d ", index);
     double px, py;
 
     px = (x + 0.5) / width;
     py = (y + 0.5) / height;
     
-    double color = (double)index / (width*height); 
+//    double color = (double)index / (width*height); 
 //     printf("color%g\n",color);
     // if(x < width && y < height)
     // {
@@ -620,10 +673,17 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives, c
     //   spectrum_buffer[y*width+x].b = color;
     // }
    if(x < width && y < height)
-      spectrum_buffer[y * width + x] = trace_ray(generate_ray_cuda(camera, px, py), primitives, lights);
+      spectrum_buffer[y * width + x] = trace_ray(generate_ray_cuda(camera, px, py), primitives, lights, state, index, root);
     //   return trace_ray(pathtracer->camera->generate_ray(px, py));
 
   }
+
+__global__ void setup_random_kernel(curandState *state,unsigned long seed)
+{
+  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+
+  curand_init(seed, index, 0, &state[index]);
+}
   
 void cudaPathTracer::start_raytracing() {
  //   pathtracer->start_raytracing();
@@ -668,7 +728,11 @@ void cudaPathTracer::start_raytracing() {
         fprintf(stderr, "Failed to  UNKOWN (error code %s)!\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
-    raytrace_pixel<<<blockNum, BLOCKSIZE>>>(camera, spectrum_buffer, primitives, cudaLights); 
+    /* Random Number Generator */
+    curandState *state;
+    cudaMalloc((void **)&state, w*h*sizeof(curandState));
+    setup_random_kernel<<<blockNum,BLOCKSIZE>>>(state, unsigned(time(NULL)));
+    raytrace_pixel<<<blockNum, BLOCKSIZE>>>(camera, spectrum_buffer, primitives, cudaLights, state, root); 
     cudaDeviceSynchronize();
 
     err = cudaPeekAtLastError();
