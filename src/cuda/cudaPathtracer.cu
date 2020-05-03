@@ -424,109 +424,109 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
 //	BVHNode* node = pathtracer->bvh->root;
   bool hit = false;
 
-//  for (size_t p = 0; p < node->range; ++p) {
-  for (size_t p = 0; p < primitiveCount; ++p) {
-    if (cudaintersectPrimitive(&primitives[p], ray, isect))
-//	if (pathtracer->bvh->primitives[node->start + p]->intersect(ray, isect))
-  {
-    hit = true;
-  }
-}
-//   cudaBVHNode* s[MAXSTACK];
-//   int stackSize = 0;
+// //  for (size_t p = 0; p < node->range; ++p) {
+//   for (size_t p = 0; p < primitiveCount; ++p) {
+//     if (cudaintersectPrimitive(&primitives[p], ray, isect))
+// //	if (pathtracer->bvh->primitives[node->start + p]->intersect(ray, isect))
+//   {
+//     hit = true;
+//   }
+// }
+  cudaBVHNode* s[MAXSTACK];
+  int stackSize = 0;
 
-//   // TODO: FIRST NODE!
-//   //stack<BVHNode*> s;
-// 	double lt0, lt1, rt0, rt1;
+  // TODO: FIRST NODE!
+  //stack<BVHNode*> s;
+	double lt0, lt1, rt0, rt1;
 
-// 	// TODO!!!
-// //	int threadCount = 10;
-// 	int pid = 0;
-// 	int M[10];
+	// TODO!!!
+//	int threadCount = 10;
+	int pid = 0;
+	int M[10];
 
-// 	cudaBVHNode* near;
-// 	cudaBVHNode* far;
+	cudaBVHNode* near;
+	cudaBVHNode* far;
   
-//   cudaBVHNode* node = root;
-// 	while(true)
-// 	{
-// 		// when it's leaf, intersect directly
+  cudaBVHNode* node = root;
+	while(true)
+	{
+		// when it's leaf, intersect directly
 
-// 		if(node->isLeaf())
-// 		{	
+		if(node->isLeaf())
+		{	
 
-// 			for (size_t p = 0; p < node->range; ++p) {
-//         if (cudaintersectPrimitive(&primitives[node->start + p], ray, isect))
-// 			//	if (pathtracer->bvh->primitives[node->start + p]->intersect(ray, isect))
-// 				{
-// 					hit = true;
-// 				}
-// 			}
-// 			if(stackSize == 0)
-// 				break;
-// 			node = s[--stackSize];
-//     }
+			for (size_t p = 0; p < node->range; ++p) {
+        if (cudaintersectPrimitive(&primitives[node->start + p], ray, isect))
+			//	if (pathtracer->bvh->primitives[node->start + p]->intersect(ray, isect))
+				{
+					hit = true;
+				}
+			}
+			if(stackSize == 0)
+				break;
+			node = s[--stackSize];
+    }
     
-// 		else
-// 		{
-// 			/* Parallel read ?*/
-// 			int hitleft = (bool)node->l->bb.intersect(ray, lt0, lt1);
-// 			int hitright = (bool)node->r->bb.intersect(ray, rt0, rt1);
+		else
+		{
+			/* Parallel read ?*/
+			int hitleft = (bool)node->l->bb.intersect(ray, lt0, lt1);
+			int hitright = (bool)node->r->bb.intersect(ray, rt0, rt1);
 
-// 			/* Use parallel and barrier to init */
-// 			for(int i = 0; i <= 3; i++)
-// 				M[i] = 0;
+			/* Use parallel and barrier to init */
+			for(int i = 0; i <= 3; i++)
+				M[i] = 0;
 
-// 			// TODO: barrier here
-// 			M[2*hitleft + hitright] = 1;
-// 			// TODO: barrier here
+			// TODO: barrier here
+			M[2*hitleft + hitright] = 1;
+			// TODO: barrier here
 
-// 			/* Visit both children */
-// 			if(M[3] || (M[1] && M[2]))
-// 			{
-// 		//		printf("HERE!!\n");
-// 				/* Decide which to go in first */
-// 				M[pid] = 2 * (hitright && (rt0 < lt0)) - 1;
+			/* Visit both children */
+			if(M[3] || (M[1] && M[2]))
+			{
+		//		printf("HERE!!\n");
+				/* Decide which to go in first */
+				M[pid] = 2 * (hitright && (rt0 < lt0)) - 1;
 
-// 				/* TODO: PARLLEL SUM OVER HERE */
-// 				if(M[pid] < 0)
-// 				{
-// 					near = node->l;
-// 					far = node->r;
-// 				}
-// 				else
-// 				{
-// 					near = node->r;
-// 					far = node->l;
-//         }
-//         s[stackSize++] = far;
-// 				node = near;
+				/* TODO: PARLLEL SUM OVER HERE */
+				if(M[pid] < 0)
+				{
+					near = node->l;
+					far = node->r;
+				}
+				else
+				{
+					near = node->r;
+					far = node->l;
+        }
+        s[stackSize++] = far;
+				node = near;
 
-// 			}
-// 			else if(M[2])
-// 			{
-// 			//	printf("HERELEFT\n");
-// 				node = node->l;
-// 			}
+			}
+			else if(M[2])
+			{
+			//	printf("HERELEFT\n");
+				node = node->l;
+			}
 
-// 			else if(M[1])
-// 			{
-// 			//	printf("HERERIGHT\n");
-// 				node = node->r;
-// 			}
+			else if(M[1])
+			{
+			//	printf("HERERIGHT\n");
+				node = node->r;
+			}
 
-// 			else
-// 			{
-// 				if(stackSize == 0)
-// 					break;
+			else
+			{
+				if(stackSize == 0)
+					break;
 
-//         node = s[--stackSize];
-// 			}
+        node = s[--stackSize];
+			}
 
 
-// 		} // end else
+		} // end else
 
-// 	}
+	}
 
 	return hit; 
 
