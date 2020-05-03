@@ -10,6 +10,7 @@
 #include "../static_scene/sphere.h"
 #include "../static_scene/triangle.h"
 #include "../static_scene/light.h" 
+#include "../static_scene/scene.h"
 
 #include "cudaPathtracer.h"
 
@@ -22,28 +23,38 @@
 #include "cudaCamera.h"
 #include "cudaMatrix3x3.h"
 #include "cudaRay.h"
+#include "cudaLight.h"
 
 
-
+//using namespace std;
 using namespace CMU462;
 using namespace StaticScene;
+
 
 using std::min;
 using std::max;
 
+
 #define BLOCKSIZE 256
-cudaTriangle* primitives;
+#define MAXLIGHT 16
+
+
 __constant__ int primitiveCount;
+cudaTriangle* primitives;
+__constant__ int lightCount;
+cudaComplexLight* cudaLights;
 __constant__ double sensorHeight; 
 __constant__ double sensorWidth; 
 __constant__ size_t width;
 __constant__ size_t height;
+__constant__ double INFD;
 
 PathTracer* pathtracer;
 cudaSpectrum* spectrum_buffer;
 cudaPrimitive* cudaPrimitives;
 cudaCamera* camera;  
 cudaMatrix3x3 c2w;
+
 
 
 cudaPathTracer::cudaPathTracer(PathTracer* _pathTracer) {
@@ -57,6 +68,89 @@ cudaPathTracer::~cudaPathTracer() {
     // delete bvh;
     // delete gridSampler; 
     // delete hemisphereSampler;
+}
+
+cudaComplexLight translateLight(SceneLight* light)
+{
+    cudaComplexLight res = cudaComplexLight();
+    res.type = light->get_type();
+    // namespace cudaLightType {
+    //   enum TYPE{ NONE, DIRECTIONAL, INFINITEHEMISPHERE, POINT, SPOT, AREA, SPHERE, MESH };
+    // }
+
+    DirectionalLight* dl;
+    InfiniteHemisphereLight* il;
+ 
+    switch(res.type)
+    {
+      case cudaLightType::DIRECTIONAL:
+         dl = (DirectionalLight*)light;
+        res.radiance = dl->radiance;
+        res.dirToLight = dl->dirToLight;
+        break;
+
+      case cudaLightType::INFINITEHEMISPHERE:
+         il = (InfiniteHemisphereLight*)light;
+        res.radiance = il->radiance;
+        res.sampleToWorld = il->sampleToWorld;
+        res._3Dsampler = il->sampler;
+        break;
+
+    }
+
+  //  printf("!!!!!!TYPE:%d\n", res.type);
+  //  res.radiance = light->radiance;
+
+
+    return res;
+}
+
+void loadLights()
+{
+  cudaError_t err;
+  // for (SceneLight* light : pathtracer->scene->lights) {
+  //   cudaComplexLight l = translateLight(light);
+  // }
+  //TODO: SAVE TO DEVICE
+  int lcount = pathtracer->scene->lights.size();
+  cudaMemcpyToSymbol(lightCount, &lcount,  sizeof(int));
+
+  err = cudaPeekAtLastError();
+
+  if (err != cudaSuccess)
+  {
+      fprintf(stderr, "Failed to init light count (error code %s)!\n", cudaGetErrorString(err));
+      exit(EXIT_FAILURE);
+  }
+
+  cudaMalloc(&cudaLights, sizeof(cudaComplexLight) * lcount);
+  err = cudaPeekAtLastError();
+
+  if (err != cudaSuccess)
+  {
+      fprintf(stderr, "Failed to malloc light (error code %s)!\n", cudaGetErrorString(err));
+      exit(EXIT_FAILURE);
+  }
+
+  cudaComplexLight* cpuLight = (cudaComplexLight *)malloc(sizeof(cudaComplexLight) * lcount);
+  for(int i = 0; i < lcount; i++)
+  {
+    cpuLight[i] = translateLight(pathtracer->scene->lights[i]);
+  //  printf("LIGHT TYPE:%d\n", cpuLight[i].type);
+  }
+
+  cudaMemcpy(cudaLights, cpuLight, sizeof(cudaComplexLight) * lcount, cudaMemcpyHostToDevice);
+  //  cudaMemcpyToSymbol(primitives, cpuTriangle,  sizeof(cudaTriangle)  * prim_num);
+    free(cpuLight);
+  
+    err = cudaPeekAtLastError();
+  
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to init light (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
 }
 
 void loadPrimitives()
@@ -101,6 +195,10 @@ void loadPrimitives()
     cpuTriangle[i].n0 = prim->mesh->normals[prim->v1]; 
     cpuTriangle[i].n1 = prim->mesh->normals[prim->v2]; 
     cpuTriangle[i].n2 = prim->mesh->normals[prim->v3]; 
+
+    DiffuseBSDF* bsdf = (DiffuseBSDF*)prim->mesh->bsdf;
+    cpuTriangle[i].bsdf.albedo = bsdf->albedo;
+    cpuTriangle[i].bsdf.sampler = bsdf->sampler;
 
   //  printf("%f \n",cpuTriangle[i].mesh->positions[cpuTriangle[i].v1].x);
   }
@@ -148,33 +246,11 @@ void cudaPathTracer::set_scene(Scene *scene) {
     }
 
     loadPrimitives();
+    loadLights();
+
+    double infine =  std::numeric_limits<double>::infinity();
+    cudaMemcpyToSymbol(INFD, &infine,  sizeof(double));
  // cudaMalloc(&cudaPrimitives, sizeof(cudaPrimitive) * prim_num);
-
-
-
-
-
-  //pathtracer->set_scene(scene);
-    // if (state != INIT) {
-    // return;
-    // }
-
-    // if (this->scene != nullptr) {
-    // delete scene;
-    // delete bvh;
-    // selectionHistory.pop();
-    // }
-
-    // if (this->envLight != nullptr) {
-    // scene->lights.push_back(this->envLight);
-    // }
-
-    // this->scene = scene;
-    // build_accel();
-
-    // if (has_valid_configuration()) {
-    // state = READY;
-    // }
 }
 
 void cudaPathTracer::set_camera(Camera *camera) {
@@ -191,47 +267,63 @@ void cudaPathTracer::set_camera(Camera *camera) {
 
 void cudaPathTracer::set_frame_size(size_t width, size_t height) {
     pathtracer->set_frame_size(width, height); 
-    // if (state != INIT && state != READY) {
-    // stop();
-    // }
-    // sampleBuffer.resize(width, height);
-    // frameBuffer.resize(width, height);
-    // if (has_valid_configuration()) {
-    // state = READY;
-    // }
+
 }
 
 
 void cudaPathTracer::update_screen() {
     pathtracer->update_screen(); 
-    // switch (state) {
-    //   case INIT:
-    //   case READY:
-    //     break;
-    //   case VISUALIZE:
-    //     visualize_accel();
-    //     break;
-    //   case RENDERING:
-    //     glDrawPixels(frameBuffer.w, frameBuffer.h, GL_RGBA, GL_UNSIGNED_BYTE,
-    //                  &frameBuffer.data[0]);
-    //     break;
-    //   case DONE:
-    //     // sampleBuffer.tonemap(frameBuffer, tm_gamma, tm_level, tm_key, tm_wht);
-    //     glDrawPixels(frameBuffer.w, frameBuffer.h, GL_RGBA, GL_UNSIGNED_BYTE,
-    //                  &frameBuffer.data[0]);
-    //     break;
-    // }
+
   }
+
+__device__ cudaVector3D getSample3D()
+{
+  //TODO!!!!!!!!!!!!!!!!TRY FIND SOME SUBSTITUTE
+  return cudaVector3D(0.5, 0.5, 0.5);
+  // double Xi1 = (double)(std::rand()) / RAND_MAX;
+  // double Xi2 = (double)(std::rand()) / RAND_MAX;
+
+  // double theta = acos(Xi1);
+  // double phi = 2.0 * PI * Xi2;
+
+  // double xs = sinf(theta) * cosf(phi);
+  // double ys = sinf(theta) * sinf(phi);
+  // double zs = cosf(theta);
+
+  // return cudaVector3D(xs, ys, zs);
+}
+__device__ cudaSpectrum sampleLight(cudaComplexLight* light, const cudaVector3D& p, cudaVector3D* wi, float* distToLight,
+  float* pdf)
+{
+  cudaSpectrum res;
+  cudaVector3D dir;
+  switch(light->type)
+  {
+    case cudaLightType::DIRECTIONAL:
+      *wi = light->dirToLight;
+      *distToLight = INFD;
+      *pdf = 1.0;
+      res = light->radiance;
+    break;
+
+    case cudaLightType::INFINITEHEMISPHERE:
+      dir = getSample3D();
+      *wi = light->sampleToWorld * dir;
+      *distToLight = INFD;
+      *pdf = 1.0 / (2.0 * M_PI);
+      res = light->radiance;
+    break;
+
+    default:
+    res = cudaSpectrum();
+    break;
+  }
+  return res;
+}
 
 
 __device__ bool cudaintersectPrimitive(cudaTriangle* primitive, const cudaRay &r, cudaIntersection *isect)
 {
-  
-  // size_t v1 = primitive->v1;
-  // size_t v2 = primitive->v2;
-  // size_t v3 = primitive->v3;
-
-  //TODO MAKE VECTOR DIRECTLY IN CUDA TRIANGLE
 
     cudaVector3D p0 = primitive->p0; 
     cudaVector3D p1 = primitive->p1;
@@ -240,9 +332,6 @@ __device__ bool cudaintersectPrimitive(cudaTriangle* primitive, const cudaRay &r
   
     cudaVector3D o = r.o;
     cudaVector3D d = r.d;
-  
-    // Vector3D o = Vector3D(co.x, co.y, co.z);
-    // Vector3D d = Vector3D(cd.x, cd.y, cd.z);
   
     cudaVector3D e1 = p1 - p0;
     cudaVector3D e2 = p2 - p0;
@@ -279,7 +368,7 @@ __device__ bool cudaintersectPrimitive(cudaTriangle* primitive, const cudaRay &r
      if (dot(isect->n, r.d) > 0)
       isect->n *= -1;
     isect->primitive = primitive;
-  //  isect->bsdf = primitive->mesh->get_bsdf();		
+    isect->bsdf = &primitive->bsdf;	 
      
   return true; 
 }
@@ -398,100 +487,102 @@ __device__ bool cudaintersectWithNode(const cudaRay &ray, cudaIntersection *isec
 
 
 
-__device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives) {
+__device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives, cudaComplexLight* lights) {
     cudaIntersection isect;  
    
    // if (!pathtracer->bvh->intersect(r, &isect)) {
     if (!cudaintersectWithNode(r, &isect, primitives)) {
-      // if(pathtracer->envLight)
-      // {
-      //   Spectrum light_L = pathtracer->envLight->sample_dir(r);
-      //   return light_L;
-      // }
-      // else
+
         return cudaSpectrum(0, 0, 0);
     }
-    return cudaSpectrum(1, 1, 1);
 
-    //  Spectrum L_out = isect.bsdf->get_emission();  // Le
+ //     return cudaSpectrum(1, 1, 1);
+   // cudaSpectrum L_out =cudaSpectrum(1, 1, 1);
+  //  cudaSpectrum L_out = (DiffuseBSDF)isect.bsdf->get_emission();  // Le
+  cudaSpectrum L_out = cudaSpectrum();
+
+    // TODO (PathTracer):
+    // Instead of initializing this value to a constant color, use the direct,
+    // indirect lighting components calculated in the code below. The starter
+    // code overwrites L_out by (.5,.5,.5) so that you can test your geometry
+    // queries before you implement path tracing.
   
-    // // TODO (PathTracer):
-    // // Instead of initializing this value to a constant color, use the direct,
-    // // indirect lighting components calculated in the code below. The starter
-    // // code overwrites L_out by (.5,.5,.5) so that you can test your geometry
-    // // queries before you implement path tracing.
-  
-    // //L_out = Spectrum(5.f, 5.f, 5.f);
-    // //DirectionalLight dl = DirectionalLight(5, 100);
+    //L_out = Spectrum(5.f, 5.f, 5.f);
+    //DirectionalLight dl = DirectionalLight(5, 100);
     
   
-    // cudaVector3D hit_p = r.o + r.d * isect.t;
-    // cudaVector3D hit_n = isect.n;
+    cudaVector3D hit_p = r.o + r.d * isect.t;
+    cudaVector3D hit_n = isect.n;
   
-    // // make a coordinate system for a hit point
-    // // with N aligned with the Z direction.
-    // cudaMatrix3x3 o2w;
-    // make_coord_space(o2w, isect.n);
-    // cudaMatrix3x3 w2o = o2w.T();
+    // make a coordinate system for a hit point
+    // with N aligned with the Z direction.
+    cudaMatrix3x3 o2w;
+    make_coord_space(o2w, isect.n);
+    cudaMatrix3x3 w2o = o2w.T();
   
-    // // w_out points towards the source of the ray (e.g.,
-    // // toward the camera if this is a primary ray)
-    // cudaVector3D w_out = w2o * (r.o - hit_p);
-    // w_out.normalize();
+    // w_out points towards the source of the ray (e.g.,
+    // toward the camera if this is a primary ray)
+    cudaVector3D w_out = w2o * (r.o - hit_p);
+    w_out.normalize();
   
   
-    // if (!isect.bsdf->is_delta()) {
-    //   Vector3D dir_to_light;
-    //   float dist_to_light;
-    //   float pr;
+  //  if (!isect.bsdf->is_delta()) {
+      cudaVector3D dir_to_light;
+      float dist_to_light;
+      float pr;
   
-    //   // ### Estimate direct lighting integral
+      // ### Estimate direct lighting integral
       
-    //   for (SceneLight* light : pathtracer->scene->lights) {
+    //  for (SceneLight* light : pathtracer->scene->lights) {
+      for (int i = 0; i < lightCount; i++) {
+        // no need to take multiple samples from a point/directional source
+      //  int num_light_samples = light->is_delta_light() ? 1 : pathtracer->ns_area_light;
+        cudaComplexLight* light = &lights[i];
+        int num_light_samples = 1;
+        // integrate light over the hemisphere about the normal
+        for (int i = 0; i < num_light_samples; i++) {
   
-    //     // no need to take multiple samples from a point/directional source
-    //     int num_light_samples = light->is_delta_light() ? 1 : pathtracer->ns_area_light;
-      
-    //     // integrate light over the hemisphere about the normal
-    //     for (int i = 0; i < num_light_samples; i++) {
+          // returns a vector 'dir_to_light' that is a direction from
+          // point hit_p to the point on the light source.  It also returns
+          // the distance from point x to this point on the light source.
+          // (pr is the probability of randomly selecting the random
+          // sample point on the light source -- more on this in part 2)
+
+
+          //  const cudaSpectrum& light_L = light->sample_L(hit_p, &dir_to_light, &dist_to_light, &pr);
+          const cudaSpectrum& light_L = sampleLight(light, hit_p, &dir_to_light, &dist_to_light, &pr);
+
+          // convert direction into coordinate space of the surface, where
+          // the surface normal is [0 0 1]
+          const cudaVector3D& w_in = w2o * dir_to_light;
+          if (w_in.z < 0) continue;
   
-    //       // returns a vector 'dir_to_light' that is a direction from
-    //       // point hit_p to the point on the light source.  It also returns
-    //       // the distance from point x to this point on the light source.
-    //       // (pr is the probability of randomly selecting the random
-    //       // sample point on the light source -- more on this in part 2)
-    //       const Spectrum& light_L = light->sample_L(hit_p, &dir_to_light, &dist_to_light, &pr);
-  
-    //       // convert direction into coordinate space of the surface, where
-    //       // the surface normal is [0 0 1]
-    //       const Vector3D& w_in = w2o * dir_to_light;
-    //       if (w_in.z < 0) continue;
-  
-    //         // note that computing dot(n,w_in) is simple
-    //       // in surface coordinates since the normal is (0,0,1)
-    //       double cos_theta = w_in.z;
+            // note that computing dot(n,w_in) is simple
+          // in surface coordinates since the normal is (0,0,1)
+          double cos_theta = w_in.z;
             
-    //       // evaluate surface bsdf
-    //       const Spectrum& f = isect.bsdf->f(w_out, w_in);
+          // evaluate surface bsdf
+         // const cudaSpectrum& f = ((cudaDiffuseBSDF*)isect.bsdf)->f(w_out, w_in);
+            const cudaSpectrum& f =  (isect.bsdf)->albedo * (1.0 / PI);
+          // TODO (PathTracer):
+          // (Task 4) Construct a shadow ray and compute whether the intersected surface is
+          // in shadow. Only accumulate light if not in shadow.
   
-    //       // TODO (PathTracer):
-    //       // (Task 4) Construct a shadow ray and compute whether the intersected surface is
-    //       // in shadow. Only accumulate light if not in shadow.
+          cudaVector3D o = hit_p + EPS_D * dir_to_light;
+          float dist = dist_to_light - EPS_D;
   
-    //       Vector3D o = hit_p + EPS_D * dir_to_light;
-    //       float dist = dist_to_light - EPS_D;
+          cudaRay shadow = cudaRay(o, dir_to_light, dist, 0);
+          shadow.min_t = EPS_D;
   
-    //       Ray shadow = Ray(o, dir_to_light, dist, 0);
-    //       shadow.min_t = EPS_D;
-  
-    //       if(!pathtracer->bvh->intersect(shadow))
-    //         L_out += 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
-    //     }
-    //   }
-    // }
+         // if(!pathtracer->bvh->intersect(shadow))
+         if(!cudaintersectWithNode(shadow, &isect, primitives)) 
+           L_out += 1.0*(cos_theta / (num_light_samples * pr)) * f * light_L;
+        }
+      }
+  //   }
   
   
-    // return L_out;
+    return L_out;
   
   }
 
@@ -507,7 +598,7 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives) {
     return cudaRay(camera->pos, camera->c2w * vec.unit());
   }
 
-  __global__ void raytrace_pixel(cudaCamera* camera, cudaSpectrum* spectrum_buffer, cudaTriangle* primitives) {
+  __global__ void raytrace_pixel(cudaCamera* camera, cudaSpectrum* spectrum_buffer, cudaTriangle* primitives, cudaComplexLight* lights) {
     // Sample the pixel with coordinate (x,y) and return the result spectrum.
     // The sample rate is given by the number of camera rays per pixel.
 
@@ -529,7 +620,7 @@ __device__ cudaSpectrum trace_ray( const cudaRay &r, cudaTriangle* primitives) {
     //   spectrum_buffer[y*width+x].b = color;
     // }
    if(x < width && y < height)
-      spectrum_buffer[y * width + x] = trace_ray(generate_ray_cuda(camera, px, py), primitives);
+      spectrum_buffer[y * width + x] = trace_ray(generate_ray_cuda(camera, px, py), primitives, lights);
     //   return trace_ray(pathtracer->camera->generate_ray(px, py));
 
   }
@@ -577,7 +668,7 @@ void cudaPathTracer::start_raytracing() {
         fprintf(stderr, "Failed to  UNKOWN (error code %s)!\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
-    raytrace_pixel<<<blockNum, BLOCKSIZE>>>(camera, spectrum_buffer, primitives); 
+    raytrace_pixel<<<blockNum, BLOCKSIZE>>>(camera, spectrum_buffer, primitives, cudaLights); 
     cudaDeviceSynchronize();
 
     err = cudaPeekAtLastError();

@@ -32,6 +32,8 @@
    */
    __device__ cudaSpectrum(const uint8_t *arr);
 
+   cudaSpectrum(Spectrum spectrum){r = spectrum.r; g = spectrum.g; b = spectrum.b;}
+
   // operators //
 
   __device__ inline cudaSpectrum operator+(const cudaSpectrum &rhs) const {

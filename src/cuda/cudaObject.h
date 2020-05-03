@@ -2,7 +2,6 @@
 #define CUDA_OBJECT_H
 
 #include "../halfEdgeMesh.h"
-#include "scene.h"
 
 
 
@@ -44,13 +43,13 @@ class cudaMesh : public SceneObject {
 /**
  * A sphere object.
  */
-class SphereObject : public SceneObject {
+class cudaSphereObject : public SceneObject {
  public:
   /**
   * Constructor.
   * Construct a static sphere for rendering from given parameters
   */
-  SphereObject(const Vector3D& o, double r, BSDF* bsdf);
+  cudaSphereObject(const Vector3D& o, double r, BSDF* bsdf);
 
   /**
   * Get all the primitives (Sphere) in the sphere object.

@@ -36,7 +36,7 @@ class Mesh : public SceneObject {
   Vector3D* positions;  ///< position array
   Vector3D* normals;    ///< normal array
 
- private:
+ //private:
   BSDF* bsdf;  ///< BSDF of surface material
 
   vector<size_t> indices;  ///< triangles defined by indices

@@ -7,6 +7,9 @@
 #include "CMU462/matrix3x3.h"
 
 #include "../sampler.h"
+#include "cudaVector3D.h"
+#include "cudaMatrix3x3.h"
+#include "cudaSpectrum.h"
 
 #include <algorithm>
  
@@ -41,7 +44,27 @@ using namespace CMU462;
 //   return clamp(w.y / sinTheta, -1.0, 1.0);
 // }
 
-void make_coord_space(cudaMatrix3x3& o2w, const cudaVector3D& n);
+__device__  void make_coord_space(cudaMatrix3x3& o2w, const cudaVector3D& n)
+{
+    cudaVector3D z = cudaVector3D(n.x, n.y, n.z);
+  cudaVector3D h = z;
+  if (fabs(h.x) <= fabs(h.y) && fabs(h.x) <= fabs(h.z))
+    h.x = 1.0;
+  else if (fabs(h.y) <= fabs(h.x) && fabs(h.y) <= fabs(h.z))
+    h.y = 1.0;
+  else
+    h.z = 1.0;
+
+  z.normalize();
+  cudaVector3D y = cross(h, z);
+  y.normalize();
+  cudaVector3D x = cross(z, y);
+  x.normalize();
+
+  o2w[0] = x;
+  o2w[1] = y;
+  o2w[2] = z;
+}
 
 /**
  * Interface for BSDFs.
@@ -57,7 +80,7 @@ class cudaBSDF {
    * \param wi incident light direction in local space of point of intersection
    * \return reflectance in the given incident/outgoing directions
    */
-  virtual cudaSpectrum f(const Vector3D& wo, const Vector3D& wi) = 0;
+  __device__ virtual cudaSpectrum f(const cudaVector3D& wo, const cudaVector3D& wi) = 0;
 
   /**
    * Evaluate BSDF.
@@ -86,7 +109,7 @@ class cudaBSDF {
    * distributions that are zero except for the single direction where light is
    * scattered.
    */
-  virtual bool is_delta() const = 0;
+  __device__ virtual bool is_delta() const = 0;
 
   /**
    * Reflection helper
@@ -108,12 +131,12 @@ class cudaDiffuseBSDF : public cudaBSDF {
  public:
   cudaDiffuseBSDF(const cudaSpectrum& a) : albedo(a) { rasterize_color = a; }
 
-  cudaSpectrum f(const Vector3D& wo, const Vector3D& wi);
+  __device__ cudaSpectrum f(const cudaVector3D& wo, const cudaVector3D& wi){  return albedo * (1.0 / PI);}
   cudaSpectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
   __device__ cudaSpectrum get_emission() const { return cudaSpectrum(); }
-  bool is_delta() const { return false; }
+  __device__ bool is_delta() const { return false; }
 
- private:
+
   cudaSpectrum albedo;
   CosineWeightedHemisphereSampler3D sampler;
 
@@ -128,10 +151,10 @@ class cudaMirrorBSDF : public cudaBSDF {
     rasterize_color = reflectance;
   }
 
-  cudaSpectrum f(const Vector3D& wo, const Vector3D& wi);
+  __device__ cudaSpectrum f(const cudaVector3D& wo, const cudaVector3D& wi);
   cudaSpectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
   __device__ cudaSpectrum get_emission() const { return cudaSpectrum(); }
-  bool is_delta() const { return true; }
+  __device__ bool is_delta() const { return true; }
 
  private:
   float roughness;
@@ -171,10 +194,10 @@ class cudaRefractionBSDF : public cudaBSDF {
     rasterize_color = transmittance;
   }
 
-  cudaSpectrum f(const Vector3D& wo, const Vector3D& wi);
+  __device__ cudaSpectrum f(const cudaVector3D& wo, const cudaVector3D& wi);
   cudaSpectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
   __device__ cudaSpectrum get_emission() const { return cudaSpectrum(); }
-  bool is_delta() const { return true; }
+  __device__ bool is_delta() const { return true; }
 
  private:
   float ior;
@@ -197,10 +220,10 @@ class cudaGlassBSDF : public cudaBSDF {
     rasterize_color = transmittance;
   }
 
-  cudaSpectrum f(const Vector3D& wo, const Vector3D& wi);
+  __device__ cudaSpectrum f(const cudaVector3D& wo, const cudaVector3D& wi);
   cudaSpectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
   __device__ cudaSpectrum get_emission() const { return cudaSpectrum(); }
-  bool is_delta() const { return true; }
+  __device__ bool is_delta() const { return true; }
 
  private:
   float ior;
@@ -217,10 +240,10 @@ class cudaEmissionBSDF : public cudaBSDF {
  public:
   cudaEmissionBSDF(const cudaSpectrum& radiance) : radiance(radiance) {}
 
-  cudaSpectrum f(const Vector3D& wo, const Vector3D& wi);
+  __device__ cudaSpectrum f(const cudaVector3D& wo, const cudaVector3D& wi);
   cudaSpectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
   __device__ cudaSpectrum get_emission() const { return radiance; }
-  bool is_delta() const { return false; }
+  __device__ bool is_delta() const { return false; }
 
  private:
   cudaSpectrum radiance;

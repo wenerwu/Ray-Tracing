@@ -62,7 +62,7 @@ class cudaCamera {
 
   cudaVector3D position() const { return pos; }
   cudaVector3D view_point() const { return targetPos; }
-  cudaVector3D up_dir() const { return c2w[1]; }
+//  cudaVector3D up_dir() const { return c2w[1]; }
   double v_fov() const { return vFov; }
   double aspect_ratio() const { return ar; }
   double near_clip() const { return nClip; }

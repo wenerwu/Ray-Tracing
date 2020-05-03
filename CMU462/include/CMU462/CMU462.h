@@ -3,6 +3,10 @@
 
 #include "misc.h"
 
+namespace cudaLightType {
+  enum TYPE{ NONE, DIRECTIONAL, INFINITEHEMISPHERE, POINT, SPOT, AREA, SPHERE, MESH };
+}
+
 // CMU462 Forward Declarations //
 
 namespace CMU462 {

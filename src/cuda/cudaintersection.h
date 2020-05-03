@@ -28,7 +28,7 @@ class cudaIntersection {
 
   cudaVector3D n;  ///< normal at point of intersection
 
-  cudaBSDF* bsdf;  ///< BSDF of the surface at point of intersection
+  cudaDiffuseBSDF* bsdf;  ///< BSDF of the surface at point of intersection
 
 };
 

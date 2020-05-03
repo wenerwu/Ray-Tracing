@@ -112,7 +112,7 @@ class DiffuseBSDF : public BSDF {
   Spectrum get_emission() const { return Spectrum(); }
   bool is_delta() const { return false; }
 
- private:
+
   Spectrum albedo;
   CosineWeightedHemisphereSampler3D sampler;
 

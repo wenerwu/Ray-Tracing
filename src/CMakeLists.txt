@@ -53,6 +53,7 @@ set(APPLICATION_SOURCE
     # Cuda
     cuda/cudaPathtracer.cu
     cuda/parallelHelper.cu
+ #   cuda/cudaLight.cu
 )
 
 

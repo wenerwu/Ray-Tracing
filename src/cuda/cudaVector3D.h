@@ -7,6 +7,7 @@
 #include <cmath>
 
 
+using namespace CMU462;
 
 /**
  * Defines 3D vectors.
@@ -111,6 +112,7 @@ class cudaVector3D {
    * Returns Euclidean length.
    */
   __device__ inline double norm( void ) const {
+  //  printf("!%g\n",sqrt( x*x + y*y + z*z ));
     return sqrt( x*x + y*y + z*z );
   }
 
@@ -134,6 +136,7 @@ class cudaVector3D {
    */
   __device__ inline void normalize( void ) {
     (*this) /= norm();
+  //  printf("%g %g %g\n", x,y,z);
   }
 
 }; // class cudaVector3D

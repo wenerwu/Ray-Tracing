@@ -10,8 +10,10 @@
 #include "scene.h"   // SceneLight
 #include "object.h"  // Mesh, SphereObject
 
+
 namespace CMU462 {
 namespace StaticScene {
+
 
 // Directional Light //
 
@@ -21,8 +23,9 @@ class DirectionalLight : public SceneLight {
   Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                     float* pdf) const;
   bool is_delta_light() const { return true; }
+  int get_type() {return cudaLightType::TYPE::DIRECTIONAL; }
 
- private:
+
   Spectrum radiance;
   Vector3D dirToLight;
 
@@ -36,8 +39,9 @@ class InfiniteHemisphereLight : public SceneLight {
   Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                     float* pdf) const;
   bool is_delta_light() const { return false; }
+  int get_type() {return cudaLightType::TYPE::INFINITEHEMISPHERE; }
 
- private:
+
   Spectrum radiance;
   Matrix3x3 sampleToWorld;
   UniformHemisphereSampler3D sampler;
@@ -52,8 +56,9 @@ class PointLight : public SceneLight {
   Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                     float* pdf) const;
   bool is_delta_light() const { return true; }
+  int get_type() {return cudaLightType::TYPE::POINT; }
 
- private:
+
   Spectrum radiance;
   Vector3D position;
 
@@ -68,8 +73,9 @@ class SpotLight : public SceneLight {
   Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                     float* pdf) const;
   bool is_delta_light() const { return true; }
+  int get_type() {return cudaLightType::TYPE::SPOT; }
 
- private:
+
   Spectrum radiance;
   Vector3D position;
   Vector3D direction;
@@ -86,8 +92,9 @@ class AreaLight : public SceneLight {
   Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                     float* pdf) const;
   bool is_delta_light() const { return false; }
+  int get_type() {return cudaLightType::TYPE::AREA; }
 
- private:
+
   Spectrum radiance;
   Vector3D position;
   Vector3D direction;
@@ -106,8 +113,9 @@ class SphereLight : public SceneLight {
   Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                     float* pdf) const;
   bool is_delta_light() const { return false; }
+  int get_type() {return cudaLightType::TYPE::SPHERE; }
 
- private:
+
   const SphereObject* sphere;
   Spectrum radiance;
   UniformHemisphereSampler3D sampler;
@@ -122,8 +130,9 @@ class MeshLight : public SceneLight {
   Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                     float* pdf) const;
   bool is_delta_light() const { return false; }
+  int get_type() {return cudaLightType::TYPE::MESH; }
 
- private:
+
   const Mesh* mesh;
   Spectrum radiance;
 

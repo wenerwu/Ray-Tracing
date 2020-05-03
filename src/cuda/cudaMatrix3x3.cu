@@ -7,21 +7,21 @@ using namespace std;
 
 namespace CMU462 {
 
-  double& cudaMatrix3x3::operator()( int i, int j ) {
-    return entries[j][i];
-  }
+  // double& cudaMatrix3x3::operator()( int i, int j ) {
+  //   return entries[j][i];
+  // }
 
-  const double& cudaMatrix3x3::operator()( int i, int j ) const {
-    return entries[j][i];
-  }
+  // const double& cudaMatrix3x3::operator()( int i, int j ) const {
+  //   return entries[j][i];
+  // }
 
-  cudaVector3D& cudaMatrix3x3::operator[]( int j ) {
-      return entries[j];
-  }
+  // cudaVector3D& cudaMatrix3x3::operator[]( int j ) {
+  //     return entries[j];
+  // }
 
-  const cudaVector3D& cudaMatrix3x3::operator[]( int j ) const {
-    return entries[j];
-  }
+  // const cudaVector3D& cudaMatrix3x3::operator[]( int j ) const {
+  //   return entries[j];
+  // }
 
   void cudaMatrix3x3::zero( double val ) {
     // sets all elements to val
@@ -140,19 +140,19 @@ namespace CMU462 {
   //          x[1]*entries[1] +
   //          x[2]*entries[2] ;
   // }
+  
+  // __device__ cudaMatrix3x3 cudaMatrix3x3::T( void ) const {
+  //   const cudaMatrix3x3& A( *this );
+  //   cudaMatrix3x3 B;
 
-  cudaMatrix3x3 cudaMatrix3x3::T( void ) const {
-    const cudaMatrix3x3& A( *this );
-    cudaMatrix3x3 B;
+  //   for( int i = 0; i < 3; i++ )
+  //   for( int j = 0; j < 3; j++ )
+  //   {
+  //      B(i,j) = A(j,i);
+  //   }
 
-    for( int i = 0; i < 3; i++ )
-    for( int j = 0; j < 3; j++ )
-    {
-       B(i,j) = A(j,i);
-    }
-
-    return B;
-  }
+  //   return B;
+  // }
 
   cudaMatrix3x3 cudaMatrix3x3::inv( void ) const {
     const cudaMatrix3x3& A( *this );

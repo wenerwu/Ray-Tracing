@@ -88,6 +88,8 @@ __device__  bool intersect(const Ray& r) const;
   cudaVector3D n0;
   cudaVector3D n1;
   cudaVector3D n2;
+
+  cudaDiffuseBSDF bsdf;
   vector<size_t> v;
 
 };  // class Triangle

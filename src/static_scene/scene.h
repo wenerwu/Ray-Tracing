@@ -25,6 +25,9 @@ class SceneObject {
    * \return the BSDF of the objects's surface
    */
   virtual BSDF* get_bsdf() const = 0;
+
+
+  
 };
 
 /**
@@ -35,6 +38,7 @@ class SceneLight {
   virtual Spectrum sample_L(const Vector3D& p, Vector3D* wi, float* distToLight,
                             float* pdf) const = 0;
   virtual bool is_delta_light() const = 0;
+  virtual int get_type(){return cudaLightType::TYPE::NONE; }; //
 };
 
 /**
