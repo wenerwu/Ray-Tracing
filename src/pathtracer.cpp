@@ -653,8 +653,13 @@ void PathTracer::worker_thread() {
   WorkItem work;
 #if MPI
   int round_count = 0;
+  int chunk_size = workQueue.get_size() / mpi_pcount;
+  int chunk_offset = workQueue.get_size() % mpi_pcount;
+  int round_start = chunk_size * mpi_id + (mpi_id < chunk_offset ? mpi_id : chunk_offset);
+  int round_end = round_start + chunk_size + (mpi_id < chunk_offset);
   while (continueRaytracing && workQueue.try_get_work(&work)) {
-    if (round_count % mpi_pcount == mpi_id)
+    // if (round_count % mpi_pcount == mpi_id)
+    if (round_count >= round_start && round_count < round_end)
       raytrace_tile(work.tile_x, work.tile_y, work.tile_w, work.tile_h);
     round_count++;
   }
@@ -697,23 +702,52 @@ void PathTracer::collect_frame_buffer() {
     timer.start();
     
     MPI_Request requests[mpi_pcount-1];
-    uint32_t framebufferbuffer[mpi_pcount-1][datalen];
-    memset(framebufferbuffer, 0, sizeof(uint32_t) * (mpi_pcount-1) * datalen);
-    for (int pid = 1; pid < mpi_pcount; pid++) {
-      MPI_Recv(&framebufferbuffer[pid-1], datalen, MPI_UNSIGNED, pid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
+    // uint32_t framebufferbuffer[mpi_pcount-1][datalen];
+    // memset(framebufferbuffer, 0, sizeof(uint32_t) * (mpi_pcount-1) * datalen);
+    // for (int pid = 1; pid < mpi_pcount; pid++) {
+    //   fprintf(stdout, "Recving %d...\n", pid);
+    //   MPI_Recv(&framebufferbuffer[pid-1], datalen, MPI_UNSIGNED, pid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    // }
 
-    // update framebuffer
+    // // update framebuffer
+    // WorkItem work;
+    // int round_count = 0;
+    // while (workQueue.try_get_work_copy(&work)) {
+    //   int mpid = round_count % mpi_pcount;
+    //   round_count++;
+    //   if (mpid == 0) {
+    //     // fprintf(stdout, ".");
+    //     continue;
+    //   }
+    //   mpi_update_tile(framebufferbuffer[mpid-1], work.tile_x, work.tile_y, work.tile_w, work.tile_h);
+    // }
+
     WorkItem work;
     int round_count = 0;
-    while (workQueue.try_get_work_copy(&work)) {
-      int mpid = round_count % mpi_pcount;
+    int chunk_size = workQueue.get_size() / mpi_pcount;
+    int chunk_offset = workQueue.get_size() % mpi_pcount;
+    int round_start = 0;
+    int round_size = chunk_size + (mpi_id < chunk_offset);
+
+    while(round_count < round_size) {
       round_count++;
-      if (mpid == 0) {
-        // fprintf(stdout, ".");
-        continue;
+      workQueue.try_get_work_copy(&work);
+    }
+
+    uint32_t framebufferbuffer[datalen];
+    memset(framebufferbuffer, 0, sizeof(uint32_t) * datalen);
+    for (int pid = 1; pid < mpi_pcount; pid++) {
+      MPI_Recv(&framebufferbuffer, datalen, MPI_UNSIGNED, pid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      
+      // update framebuffer
+      round_count = 0;
+      round_start = chunk_size * pid + (mpi_id < chunk_offset ? mpi_id : chunk_offset);
+      round_size = chunk_size + (pid < chunk_offset);
+      while(round_count < round_size) {
+        round_count++;
+        workQueue.try_get_work_copy(&work);
+        mpi_update_tile(framebufferbuffer, work.tile_x, work.tile_y, work.tile_w, work.tile_h);
       }
-      mpi_update_tile(framebufferbuffer[mpid-1], work.tile_x, work.tile_y, work.tile_w, work.tile_h);
     }
 
     timer.stop();

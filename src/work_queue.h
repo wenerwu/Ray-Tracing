@@ -28,6 +28,10 @@ class WorkQueue {
  public:
   WorkQueue() {}
 
+  int get_size() {
+    return storage_copy.size();
+  }
+
   bool is_empty() {
     lock.lock();
     bool result = storage.empty();
